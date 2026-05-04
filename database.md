@@ -19,6 +19,10 @@ building_locations
 organizational_structure
   └── employees (position FK)
 
+employee_types
+  └── employees (employee_type_id FK)
+        └── employee_details (employee_id FK)
+
 device
   └── asset (asset_type FK)
 
@@ -66,16 +70,50 @@ Menyimpan data jabatan pegawai.
 
 ---
 
+## Tabel: `employee_types`
+Menyimpan tipe karyawan.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| id | int8 | PK, auto increment |
+| type_name | varchar | Nama tipe (Karyawan / Non-Karyawan) |
+| created_at | timestamptz | Default now() |
+
+Data default:
+- `Karyawan`
+- `Non-Karyawan`
+
+---
+
 ## Tabel: `employees`
+Menyimpan data diri pegawai.
+
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | id | uuid | PK, gen_random_uuid() |
 | nama_pegawai | text | Nama lengkap pegawai |
-| jenis_pegawai | text | Jenis pegawai |
+| employee_type_id | int8 | FK → employee_types.id |
 | position | int8 | FK → organizational_structure.id |
 | building_id | int8 | FK → building_locations.id |
-| lokasi | int8 | FK → room_locations.id |
+| lokasi | int8 | FK → room_locations.id (menentukan lokasi asset) |
 | created_at | timestamptz | Default now() |
+
+---
+
+## Tabel: `employee_details`
+Menyimpan data tambahan pegawai berdasarkan tipe.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| id | int8 | PK, auto increment |
+| employee_id | uuid | FK → employees.id ON DELETE CASCADE |
+| employee_number | varchar | ID Karyawan (hanya diisi jika Karyawan) |
+| instansi | varchar | Nama instansi (hanya diisi jika Non-Karyawan) |
+| nomor_ktp | varchar | Nomor KTP (hanya diisi jika Non-Karyawan) |
+| created_at | timestamptz | Default now() |
+
+> Jika tipe Karyawan: isi `employee_number`, kolom lain null.
+> Jika tipe Non-Karyawan: isi `instansi` atau `nomor_ktp` (minimal salah satu), kolom lain null jika tidak diisi.
 
 ---
 
@@ -186,11 +224,15 @@ const { data: assetCode } = await supabase.rpc('generate_asset_code', {
 ## Alur Insert Saat Submit Form
 
 ```
-1. INSERT ke employees → dapat employee_id
-2. Panggil RPC generate_asset_code(room_id, device_id) → dapat asset_code
-3. INSERT ke asset (employee_id, asset_code, asset_type, kondisi_aset, asset_status, photo_url) → dapat asset_id
-4. INSERT ke spec_computer (asset_id) jika device adalah Laptop/PC → dapat spec_computer_id
-5. INSERT ke asset_software (spec_computer_id) untuk setiap software yang diinput
+1. INSERT ke employees (nama_pegawai, employee_type_id, position, building_id, lokasi) → dapat employee_id
+2. INSERT ke employee_details (employee_id):
+   - Jika Karyawan: isi employee_number
+   - Jika Non-Karyawan: isi instansi & nomor_ktp
+3. Loop setiap asset:
+   a. Upload foto ke storage asset_photo → dapat photo_url
+   b. Panggil RPC insert_asset_with_code(employee_id, device_id, room_id, ...) → dapat asset_id
+   c. Jika Laptop/Personal Computer: INSERT ke spec_computer (asset_id) → dapat spec_computer_id
+   d. INSERT ke asset_software (spec_computer_id) untuk setiap software
 ```
 
 ---
@@ -204,3 +246,6 @@ const { data: assetCode } = await supabase.rpc('generate_asset_code', {
 | device | device_prefix | Bukan `prefix` |
 | asset | asset_type | UUID FK ke device |
 | asset | kondisi_aset | int8 FK ke asset_condition |
+| employees | employee_type_id | FK ke employee_types, bukan jenis_pegawai |
+| employee_details | employee_number | Hanya untuk tipe Karyawan |
+| employee_details | instansi, nomor_ktp | Hanya untuk tipe Non-Karyawan |
