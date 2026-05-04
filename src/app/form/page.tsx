@@ -1,10 +1,14 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/lib/supabaseClient";
+import { formatErrorDetails } from "@/lib/errorUtils";
+import { saveAssetSubmission } from "@/lib/assetCodeStore";
+import { COMPUTER_FIELDS, computerFieldMeta, isComputerDevice } from "@/app/form/formConstants";
 
 const formSchema = z.object({
   nama_pegawai: z.string().min(1, "Nama pegawai wajib diisi"),
@@ -26,7 +30,6 @@ type Asset = {
   condition_id: string;
   status_id: string;
   photo: File;
-  computer_name?: string;
   operating_system?: string;
   merk?: string;
   processor?: string;
@@ -42,12 +45,6 @@ type SelectOption = { id: string; label: string };
 type Notification = {
   type: "success" | "error";
   message: string;
-};
-
-const isComputerDevice = (deviceName: string | undefined) => {
-  if (!deviceName) return false;
-  const normalized = deviceName.toLowerCase();
-  return ['laptop', 'personal computer'].some(keyword => normalized.includes(keyword));
 };
 
 export default function FormPage() {
@@ -68,6 +65,7 @@ export default function FormPage() {
   const [notification, setNotification] = useState<Notification | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  const router = useRouter();
 
   // Prevent duplicate fetches
   const hasFetchedRef = useRef(false);
@@ -129,10 +127,52 @@ export default function FormPage() {
   const selectedEmployeeTypeLabel = employeeTypes.find((type) => type.id === selectedEmployeeTypeId)?.label ?? "";
   const isKaryawan = selectedEmployeeTypeLabel === "Karyawan";
   const isNonKaryawan = selectedEmployeeTypeLabel === "Non-Karyawan";
-  const isComputerCurrent = useMemo(
-    () => isComputerDevice(devices.find((d) => d.id === currentAsset.device_id)?.label),
+  const currentDeviceLabel = useMemo(
+    () => devices.find((d) => d.id === currentAsset.device_id)?.label,
     [devices, currentAsset.device_id]
   );
+  const isComputerCurrent = useMemo(
+    () => isComputerDevice(currentDeviceLabel),
+    [currentDeviceLabel]
+  );
+  const isLaptopCurrent = useMemo(
+    () => currentDeviceLabel?.toLowerCase().includes("laptop") ?? false,
+    [currentDeviceLabel]
+  );
+  const isPCCurrent = useMemo(
+    () => {
+      if (!currentDeviceLabel) return false;
+      const normalized = currentDeviceLabel.toLowerCase();
+      return /\b(pc|personal computer|komputer)\b/.test(normalized) && !normalized.includes("laptop");
+    },
+    [currentDeviceLabel]
+  );
+
+  const assetNameLabel = isLaptopCurrent
+    ? "Nama & Model Perangkat"
+    : isPCCurrent
+    ? "Nama Komputer"
+    : "Nama Perangkat & Model";
+  const assetNamePlaceholder = isLaptopCurrent
+    ? "contoh: Dell XPS 15 9500"
+    : isPCCurrent
+    ? "contoh: DESKTOP-ABC123 atau nama custom"
+    : "contoh: Dell XPS 15 9500";
+
+  const merkLabel = "Merk / Jenis CPU";
+  const merkPlaceholder = isPCCurrent ? "contoh: Intel, AMD" : "contoh: Asus, Dell, Lenovo, HP";
+  const merkHint = isPCCurrent
+    ? "Cukup tulis merek prosesor tanpa model atau generasi"
+    : "Masukkan merk laptop";
+
+  const dynamicFieldMeta = {
+    ...computerFieldMeta,
+    merk: {
+      ...computerFieldMeta.merk,
+      placeholder: merkPlaceholder,
+      hint: merkHint,
+    },
+  };
 
   const updateCurrentAsset = <K extends keyof Asset>(field: K, value: Asset[K] | undefined) => {
     setCurrentAsset((prev) => ({ ...prev, [field]: value }));
@@ -164,7 +204,6 @@ export default function FormPage() {
 
     if (isComputerCurrent) {
       if (
-        !currentAsset.computer_name ||
         !currentAsset.operating_system ||
         !currentAsset.merk ||
         !currentAsset.processor ||
@@ -185,7 +224,6 @@ export default function FormPage() {
       condition_id: currentAsset.condition_id,
       status_id: currentAsset.status_id,
       photo: currentAsset.photo as File,
-      computer_name: currentAsset.computer_name,
       operating_system: currentAsset.operating_system,
       merk: currentAsset.merk,
       processor: currentAsset.processor,
@@ -301,7 +339,7 @@ export default function FormPage() {
         console.log("🎉 All dropdown options loaded successfully!");
       } catch (err) {
         console.error("💥 Unexpected error during data loading:", err);
-        setFetchError(err instanceof Error ? err.message : "Unexpected error occurred");
+        setFetchError(formatErrorDetails(err));
         hasFetchedRef.current = false; // Allow retry on error
       }
     };
@@ -325,7 +363,7 @@ export default function FormPage() {
         setEmployeeTypes((data ?? []).map((row) => ({ id: String(row.id), label: row.type_name })));
       } catch (err) {
         console.error("💥 Unexpected error fetching employee_types:", err);
-        setFetchError(err instanceof Error ? err.message : "Unexpected error occurred");
+        setFetchError(formatErrorDetails(err));
       }
     };
 
@@ -500,7 +538,6 @@ export default function FormPage() {
             .insert([
               {
                 asset_id,
-                computer_name: asset.computer_name,
                 operating_system: asset.operating_system,
                 merk: asset.merk,
                 processor: asset.processor,
@@ -537,17 +574,43 @@ export default function FormPage() {
         }
       }
 
-      setNotification({ type: "success", message: "Semua asset berhasil ditambahkan." });
-      setStep(1);
-      setAssets([]);
-      setCurrentAsset({});
-      setCurrentSoftwares([{ name: "" }]);
-      setCurrentAssetCode("");
-      reset();
+      const review = {
+        employee: {
+          nama_pegawai: values.nama_pegawai,
+          employee_type: selectedType,
+          employee_number: selectedType === "Karyawan" ? values.employee_number?.trim() : undefined,
+          instansi: selectedType === "Non-Karyawan" ? values.instansi : undefined,
+          nomor_ktp: selectedType === "Non-Karyawan" ? values.nomor_ktp : undefined,
+          position: positions.find((item) => item.id === values.position)?.label ?? "",
+          building: buildings.find((item) => item.id === values.building_id)?.label ?? "",
+          lokasi: locations.find((item) => item.id === values.lokasi)?.label ?? "",
+        },
+        assets: assets.map((asset) => ({
+          asset_code: asset.asset_code ?? "N/A",
+          asset_name: asset.asset_name,
+          device_label: devices.find((item) => item.id === asset.device_id)?.label ?? "",
+          condition_label: conditions.find((item) => item.id === asset.condition_id)?.label ?? "",
+          status_label: statuses.find((item) => item.id === asset.status_id)?.label ?? "",
+          operating_system: asset.operating_system,
+          merk: asset.merk,
+          processor: asset.processor,
+          ram: asset.ram,
+          jenis_storage: asset.jenis_storage,
+          besar_storage: asset.besar_storage,
+          grafis_card: asset.grafis_card,
+          softwares: asset.softwares?.map((soft) => soft.name).filter(Boolean),
+        })),
+        assetCodes: assets.map((asset) => asset.asset_code ?? "N/A"),
+      };
+
+      saveAssetSubmission(review);
+      setLoading(false);
+      router.push("/asset-codes");
+      return;
     } catch (error) {
       setNotification({
         type: "error",
-        message: error instanceof Error ? error.message : "Terjadi kesalahan saat submit.",
+        message: formatErrorDetails(error),
       });
     } finally {
       setLoading(false);
@@ -567,13 +630,14 @@ export default function FormPage() {
           <button
             type="button"
             onClick={() => setTheme(isDark ? "light" : "dark")}
-            className={`inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition ${
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
               isDark
                 ? "bg-slate-700 text-slate-100 hover:bg-slate-600"
                 : "bg-slate-100 text-slate-900 hover:bg-slate-200"
             }`}
           >
-            {isDark ? "Light mode" : "Dark mode"}
+            <span className="text-xl">{isDark ? "☀️" : "🌙"}</span>
           </button>
         </header>
 
@@ -801,11 +865,11 @@ export default function FormPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700">Nama Perangkat & Model</label>
-                <span className="block pb-2 text-sm text-slate-400"> Contoh: Lenovo ThinkPad </span>
+                <label className="block text-sm font-medium text-slate-700">{assetNameLabel}</label>
                 <input
                   value={currentAsset.asset_name || ""}
                   onChange={(e) => updateCurrentAsset("asset_name", e.target.value)}
+                  placeholder={assetNamePlaceholder}
                   className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
                   type="text"
                 />
@@ -858,26 +922,24 @@ export default function FormPage() {
               {isComputerCurrent && (
                 <>
                   <div className="grid gap-6 lg:grid-cols-2">
-                    {([
-                      { name: "computer_name", label: "Computer Name" },
-                      { name: "operating_system", label: "Operating System" },
-                      { name: "merk", label: "Merk" },
-                      { name: "processor", label: "Processor" },
-                      { name: "ram", label: "RAM" },
-                      { name: "jenis_storage", label: "Jenis Storage" },
-                      { name: "besar_storage", label: "Besar Storage" },
-                      { name: "grafis_card", label: "Grafis Card" },
-                    ] as Array<{ name: keyof Asset; label: string }> ).map((field) => (
-                      <div key={field.name}>
-                        <label className="mb-2 block text-sm font-medium text-slate-700">{field.label}</label>
-                        <input
-                          value={(currentAsset[field.name] as string) || ""}
-                          onChange={(e) => updateCurrentAsset(field.name, e.target.value)}
-                          className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
-                          type="text"
-                        />
-                      </div>
-                    ))}
+                    {COMPUTER_FIELDS.map((name) => {
+                      const meta = dynamicFieldMeta[name];
+                      return (
+                        <div key={name}>
+                          <label className="mb-2 block text-sm font-medium text-slate-700">{meta.label}</label>
+                          <input
+                            value={(currentAsset[name] as string) || ""}
+                            onChange={(e) => updateCurrentAsset(name, e.target.value)}
+                            placeholder={meta.placeholder}
+                            className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
+                            type="text"
+                          />
+                          {meta.hint ? (
+                            <p className="mt-2 text-sm text-slate-500">{meta.hint}</p>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
 
                   <div className="space-y-4">
@@ -987,13 +1049,6 @@ export default function FormPage() {
                         <p><strong>Status:</strong> {statuses.find(s => s.id === asset.status_id)?.label}</p>
                         {isComputerDevice(devices.find(d => d.id === asset.device_id)?.label) && (
                           <div className="mt-2 pl-4 border-l-2 border-slate-300">
-                            <p>
-                              <strong>Computer Name:
-                              </strong> 
-                              
-                              {asset.computer_name}
-                            </p>
-                            
                             <p><strong>OS:</strong> {asset.operating_system}</p>
                             <p><strong>Merk:</strong> {asset.merk}</p>
                             <p><strong>Processor:</strong> {asset.processor}</p>
