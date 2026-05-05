@@ -14,6 +14,12 @@ export type SubmittedAsset = {
   besar_storage?: string;
   grafis_card?: string;
   softwares?: string[];
+  checklist_items?: {
+    checklist_item_id: number;
+    item_text: string;
+    category: string;
+    is_checked: boolean;
+  }[];
 };
 
 export type SubmittedReview = {

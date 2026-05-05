@@ -40,6 +40,17 @@ type Asset = {
   softwares?: { name: string }[];
 };
 
+type ChecklistCategory = "LOW" | "MEDIUM" | "HIGH";
+
+type ChecklistItem = {
+  id: number;
+  category: ChecklistCategory;
+  prefix: "LAPTOP" | "PC" | null;
+  item_text: string;
+};
+
+type AssetChecklistState = Record<number, boolean>;
+
 type SelectOption = { id: string; label: string };
 
 type Notification = {
@@ -61,6 +72,8 @@ export default function FormPage() {
   const [currentSoftwares, setCurrentSoftwares] = useState([{ name: "" }]);
   const [currentAssetCode, setCurrentAssetCode] = useState("");
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
+  const [assetChecklistStates, setAssetChecklistStates] = useState<AssetChecklistState[]>([]);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState<Notification | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -148,6 +161,54 @@ export default function FormPage() {
     [currentDeviceLabel]
   );
 
+  const parseChecklistItem = (item: { id: number; category: string; item_text: string }) => {
+    const rawText = item.item_text.trim();
+    let prefix: "LAPTOP" | "PC" | null = null;
+    let text = rawText;
+
+    if (rawText.toUpperCase().startsWith("[LAPTOP]")) {
+      prefix = "LAPTOP";
+      text = rawText.replace(/^\[LAPTOP\]\s*/i, "");
+    } else if (rawText.toUpperCase().startsWith("[PC]")) {
+      prefix = "PC";
+      text = rawText.replace(/^\[PC\]\s*/i, "");
+    }
+
+    return {
+      id: item.id,
+      category: item.category.toUpperCase() as ChecklistCategory,
+      prefix,
+      item_text: text.trim(),
+    };
+  };
+
+  const getChecklistItemsForAsset = (asset: Asset) => {
+    const deviceLabel = devices.find((device) => device.id === asset.device_id)?.label?.toLowerCase() ?? "";
+    return checklistItems.filter((item) => {
+      if (item.prefix === "LAPTOP") {
+        return deviceLabel.includes("laptop");
+      }
+      if (item.prefix === "PC") {
+        return /\b(pc|personal computer|komputer)\b/.test(deviceLabel) && !deviceLabel.includes("laptop");
+      }
+      return true;
+    });
+  };
+
+  const getChecklistGroupsForAsset = (asset: Asset) => {
+    const items = getChecklistItemsForAsset(asset);
+    return (["LOW", "MEDIUM", "HIGH"] as ChecklistCategory[]).map((category) => ({
+      category,
+      label:
+        category === "LOW"
+          ? "🟢  KATEGORI LOW "
+          : category === "MEDIUM"
+          ? "🟡  KATEGORI MEDIUM"
+          : "🔴  KATEGORI HIGH",
+      items: items.filter((item) => item.category === category),
+    })).filter((group) => group.items.length > 0);
+  };
+
   const assetNameLabel = isLaptopCurrent
     ? "Nama Perangkat"
     : isPCCurrent
@@ -188,6 +249,14 @@ export default function FormPage() {
 
   const updateSoftware = (index: number, name: string) => {
     setCurrentSoftwares((prev) => prev.map((s, i) => (i === index ? { name } : s)));
+  };
+
+  const updateAssetChecklist = (assetIndex: number, itemId: number, checked: boolean) => {
+    setAssetChecklistStates((prev) =>
+      prev.map((state, index) =>
+        index === assetIndex ? { ...state, [itemId]: checked } : state
+      )
+    );
   };
 
   const addAssetToList = () => {
@@ -371,6 +440,48 @@ export default function FormPage() {
   }, []);
 
   useEffect(() => {
+    const loadChecklistItems = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("security_checklist_items")
+          .select("id, category, item_text");
+
+        if (error) {
+          console.error("❌ Error fetching security checklist items:", error);
+          // If table doesn't exist, set empty array and continue
+          setChecklistItems([]);
+          return;
+        }
+
+        setChecklistItems(
+          (data ?? [])
+            .map((item) => parseChecklistItem(item))
+            .filter((item) => ["LOW", "MEDIUM", "HIGH"].includes(item.category))
+        );
+      } catch (err) {
+        console.error("💥 Unexpected error fetching security checklist items:", err);
+        // Set empty array on error to prevent crashes
+        setChecklistItems([]);
+      }
+    };
+
+    loadChecklistItems();
+  }, []);
+
+  useEffect(() => {
+    setAssetChecklistStates((prev) =>
+      assets.map((asset, index) => {
+        const items = getChecklistItemsForAsset(asset);
+        const previous = prev[index] || {};
+        return items.reduce((checklist, item) => {
+          checklist[item.id] = previous[item.id] ?? false;
+          return checklist;
+        }, {} as AssetChecklistState);
+      })
+    );
+  }, [assets, checklistItems]);
+
+  useEffect(() => {
     if (!currentAsset.device_id || !selectedRoomId) {
       setCurrentAssetCode("");
       return;
@@ -431,7 +542,7 @@ export default function FormPage() {
     setStep((current) => current + 1);
   };
 
-  const assetStepCount = 3;
+  const assetStepCount = 4;
 
   const onSubmit = async (values: FormValues) => {
     if (assets.length === 0) {
@@ -503,7 +614,7 @@ export default function FormPage() {
         throw new Error(detailsInsert.error.message);
       }
 
-      for (const asset of assets) {
+      for (const [assetIndex, asset] of assets.entries()) {
         const fileName = `${Date.now()}_${asset.photo.name.replace(/\s+/g, "_")}`;
         const filePath = fileName;
 
@@ -572,6 +683,25 @@ export default function FormPage() {
             }
           }
         }
+
+        const checklistRows = getChecklistItemsForAsset(asset).map((item) => ({
+          asset_id,
+          checklist_item_id: item.id,
+          is_checked: Boolean(assetChecklistStates[assetIndex]?.[item.id]),
+        }));
+
+        if (checklistRows.length > 0) {
+          try {
+            const checklistInsert = await supabase.from("asset_security_checklist").insert(checklistRows);
+            if (checklistInsert.error) {
+              console.warn("⚠️ Could not save checklist data (table may not exist):", checklistInsert.error);
+              // Continue with submission even if checklist save fails
+            }
+          } catch (err) {
+            console.warn("⚠️ Checklist save failed:", err);
+            // Continue with submission
+          }
+        }
       }
 
       const review = {
@@ -585,7 +715,7 @@ export default function FormPage() {
           building: buildings.find((item) => item.id === values.building_id)?.label ?? "",
           lokasi: locations.find((item) => item.id === values.lokasi)?.label ?? "",
         },
-        assets: assets.map((asset) => ({
+        assets: assets.map((asset, index) => ({
           asset_code: asset.asset_code ?? "N/A",
           asset_name: asset.asset_name,
           device_label: devices.find((item) => item.id === asset.device_id)?.label ?? "",
@@ -599,6 +729,12 @@ export default function FormPage() {
           besar_storage: asset.besar_storage,
           grafis_card: asset.grafis_card,
           softwares: asset.softwares?.map((soft) => soft.name).filter(Boolean),
+          checklist_items: getChecklistItemsForAsset(asset).map((item) => ({
+            checklist_item_id: item.id,
+            item_text: item.item_text,
+            category: item.category,
+            is_checked: Boolean(assetChecklistStates[index]?.[item.id]),
+          })),
         })),
         assetCodes: assets.map((asset) => asset.asset_code ?? "N/A"),
       };
@@ -666,7 +802,7 @@ export default function FormPage() {
             <span>{step} / {assetStepCount}</span>
           </div>
           <div className="flex gap-2">
-            {[1, 2, 3].map((tab) => (
+            {[1, 2, 3, 4].map((tab) => (
               <div
                 key={tab}
                 className={`flex-1 rounded-full border px-3 py-2 text-center text-xs font-semibold ${
@@ -675,7 +811,8 @@ export default function FormPage() {
               >
                 {tab === 1 && "Pegawai"}
                 {tab === 2 && "Tambah Asset"}
-                {tab === 3 && "Review & Submit"}
+                {tab === 3 && "Keamanan Perangkat"}
+                {tab === 4 && "Review & Submit"}
               </div>
             ))}
           </div>
@@ -1017,6 +1154,74 @@ export default function FormPage() {
 
           {step === 3 && (
             <section className="space-y-6">
+              <h2 className="text-lg font-semibold text-slate-800">Keamanan Perangkat</h2>
+
+              {assets.length === 0 ? (
+                <p className="text-slate-500">Tambahkan asset terlebih dahulu untuk melihat checklist keamanan.</p>
+              ) : checklistItems.length === 0 ? (
+                <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6">
+                  <div className="flex items-start gap-3">
+                    <span className="text-amber-600">⚠️</span>
+                    <div>
+                      <h3 className="font-semibold text-amber-800">Tabel Checklist Keamanan Belum Dibuat</h3>
+                      <p className="mt-2 text-amber-700">
+                        Tabel <code className="bg-amber-100 px-1 rounded">security_checklist_items</code> belum ada di database.
+                        Checklist keamanan akan dilewati. Untuk membuat tabel, jalankan SQL script di file{" "}
+                        <code className="bg-amber-100 px-1 rounded">create_security_tables.sql</code> di Supabase dashboard.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {assets.map((asset, assetIndex) => {
+                    const groups = getChecklistGroupsForAsset(asset);
+                    const checkedCount = Object.values(assetChecklistStates[assetIndex] || {}).filter(Boolean).length;
+                    const totalCount = groups.reduce((total, group) => total + group.items.length, 0);
+
+                    return (
+                      <div key={assetIndex} className={`rounded-3xl border p-6 ${panelStyle}`}>
+                        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div>
+                            <h3 className="text-lg font-semibold text-slate-900">Keamanan Perangkat — {asset.asset_name} / {asset.asset_code}</h3>
+                            <p className="text-sm text-slate-500">{checkedCount} dari {totalCount} item sudah dicentang</p>
+                          </div>
+                        </div>
+
+                        {groups.length === 0 ? (
+                          <p className="text-sm text-slate-500">Tidak ada checklist keamanan untuk perangkat ini.</p>
+                        ) : (
+                          <div className="space-y-6">
+                            {groups.map((group) => (
+                              <div key={group.category} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                <p className="mb-4 text-sm font-semibold text-slate-800">{group.label}</p>
+                                <div className="space-y-3">
+                                  {group.items.map((item) => (
+                                    <label key={item.id} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(assetChecklistStates[assetIndex]?.[item.id])}
+                                        onChange={(e) => updateAssetChecklist(assetIndex, item.id, e.target.checked)}
+                                        className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+                                      />
+                                      <span className="text-sm text-slate-700">{item.item_text}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
+
+          {step === 4 && (
+            <section className="space-y-6">
               <h2 className="text-lg font-semibold text-slate-800">Review & Submit</h2>
 
               <div className={`rounded-3xl border p-6 ${panelStyle}`}>
@@ -1092,6 +1297,15 @@ export default function FormPage() {
                 <button
                   type="button"
                   onClick={() => setStep(3)}
+                  className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+                >
+                  Lanjut ke Keamanan
+                </button>
+              )}
+              {step === 3 && assets.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setStep(4)}
                   className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
                 >
                   Lanjut ke Review

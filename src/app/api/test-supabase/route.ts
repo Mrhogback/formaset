@@ -47,6 +47,17 @@ export async function GET() {
       count: deviceResult.data?.length || 0
     };
 
+    // Test security_checklist_items
+    const checklistResult = await supabase
+      .from("security_checklist_items")
+      .select("id, category, item_text");
+
+    results.security_checklist_items = {
+      data: checklistResult.data,
+      error: checklistResult.error,
+      count: checklistResult.data?.length || 0
+    };
+
     console.log("📊 Test results:", results);
 
     return NextResponse.json({

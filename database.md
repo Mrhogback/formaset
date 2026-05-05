@@ -13,8 +13,10 @@ building_locations
   └── room_locations (building_id FK)
         └── employees (lokasi FK)
               └── asset (employee_id FK)
-                    └── spec_computer (asset_id FK)
-                          └── asset_software (spec_computer_id FK)
+                    ├── spec_computer (asset_id FK)
+                    │     └── asset_software (spec_computer_id FK)
+                    └── asset_security_checklist (asset_id FK)
+                          └── security_checklist_items (checklist_item_id FK)
 
 organizational_structure
   └── employees (position FK)
@@ -175,7 +177,6 @@ Menyimpan spesifikasi teknis untuk aset jenis Laptop & PC.
 |---|---|---|
 | id | int8 | PK, auto increment |
 | asset_id | uuid | FK → asset.id |
-| computer_name | text | Nama komputer |
 | operating_system | text | Sistem operasi |
 | merk | text | Merek perangkat |
 | processor | text | Tipe processor |
@@ -198,6 +199,45 @@ Menyimpan daftar software yang terinstall di perangkat.
 | spec_computer_id | int8 | FK → spec_computer.id |
 | name | text | Nama software |
 | created_at | timestamptz | Default now() |
+
+---
+
+## Tabel: `security_checklist_items`
+Menyimpan master daftar item checklist keamanan perangkat.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| id | int8 | PK, auto increment |
+| category | varchar | Kategori: LOW / MEDIUM / HIGH |
+| item_text | text | Teks item checklist yang ditampilkan ke user |
+| created_at | timestamptz | Default now() |
+
+> Item dengan prefix `[LAPTOP]` hanya ditampilkan jika device adalah Laptop.
+> Item dengan prefix `[PC]` hanya ditampilkan jika device adalah Personal Computer.
+> Prefix difilter di frontend — tidak ditampilkan ke user.
+> Item tanpa prefix ditampilkan untuk semua jenis perangkat.
+
+Kategori dan jumlah item:
+- LOW: 8 item (6 umum, 2 khusus Laptop)
+- MEDIUM: 7 item (4 umum, 1 khusus PC, 2 khusus Laptop)
+- HIGH: 5 item (semua umum)
+
+---
+
+## Tabel: `asset_security_checklist`
+Menyimpan hasil checklist keamanan per aset.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| id | int8 | PK, auto increment |
+| asset_id | uuid | FK → asset.id ON DELETE CASCADE |
+| checklist_item_id | int8 | FK → security_checklist_items.id |
+| is_checked | boolean | true jika dicentang user, false jika tidak |
+| created_at | timestamptz | Default now() |
+
+> Setiap aset menyimpan semua item yang relevan (berdasarkan device type).
+> Item tidak wajib dicentang — semua opsional.
+> Hasil checklist disimpan bersamaan dengan insert asset saat submit form.
 
 ---
 
@@ -233,6 +273,10 @@ const { data: assetCode } = await supabase.rpc('generate_asset_code', {
    b. Panggil RPC insert_asset_with_code(employee_id, device_id, room_id, ...) → dapat asset_id
    c. Jika Laptop/Personal Computer: INSERT ke spec_computer (asset_id) → dapat spec_computer_id
    d. INSERT ke asset_software (spec_computer_id) untuk setiap software
+   e. INSERT ke asset_security_checklist untuk setiap item checklist yang relevan:
+      - asset_id: dari hasil insert asset
+      - checklist_item_id: id item dari security_checklist_items
+      - is_checked: true jika dicentang user, false jika tidak
 ```
 
 ---
@@ -248,4 +292,6 @@ const { data: assetCode } = await supabase.rpc('generate_asset_code', {
 | asset | kondisi_aset | int8 FK ke asset_condition |
 | employees | employee_type_id | FK ke employee_types, bukan jenis_pegawai |
 | employee_details | employee_number | Hanya untuk tipe Karyawan |
-| employee_details | instansi, nomor_ktp | Hanya untuk tipe Non-Karyawan |
+| security_checklist_items | category | Nilai: LOW / MEDIUM / HIGH |
+| security_checklist_items | item_text | Prefix [LAPTOP] dan [PC] difilter di frontend |
+| asset_security_checklist | is_checked | Boolean, default false |

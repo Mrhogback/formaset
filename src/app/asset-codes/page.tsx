@@ -184,6 +184,21 @@ export default function AssetCodesPage() {
                         <p className={`text-sm ${labelStyle}`}>OS</p>
                         <p className={`mt-1 font-medium ${valueStyle}`}>{asset.operating_system}</p>
                       </div>
+                      {asset.checklist_items && asset.checklist_items.length > 0 && (
+                        <div className="sm:col-span-2">
+                          <p className={`text-sm ${labelStyle}`}>Checklist Keamanan</p>
+                          <p className={`mt-1 font-medium ${valueStyle}`}>{asset.checklist_items.filter((item) => item.is_checked).length} / {asset.checklist_items.length} dicentang</p>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            {asset.checklist_items
+                              .filter((item) => item.is_checked)
+                              .map((item, itemIndex) => (
+                                <span key={itemIndex} className="inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">
+                                  {item.item_text}
+                                </span>
+                              ))}
+                          </div>
+                        </div>
+                      )}
                       <div>
                         <p className={`text-sm ${labelStyle}`}>Merk / CPU</p>
                         <p className={`mt-1 font-medium ${valueStyle}`}>{asset.merk}</p>
