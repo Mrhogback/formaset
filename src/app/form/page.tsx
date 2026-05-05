@@ -163,7 +163,7 @@ export default function FormPage() {
   const merkPlaceholder = isPCCurrent ? "contoh: Intel, AMD" : "contoh: Asus, Dell, Lenovo, HP";
   const merkHint = isPCCurrent
     ? "Cukup tulis merek prosesor tanpa model atau generasi"
-    : "Masukkan merk laptop";
+    : "Masukkan merk laptop jika jenis perangkat laptop, jika jenis perangkat PC isi dengan nama merk CPU";
 
   const dynamicFieldMeta = {
     ...computerFieldMeta,
@@ -631,13 +631,14 @@ export default function FormPage() {
             type="button"
             onClick={() => setTheme(isDark ? "light" : "dark")}
             aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-            className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
+            className={`inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full transition-colors ${
               isDark
                 ? "bg-slate-700 text-slate-100 hover:bg-slate-600"
                 : "bg-slate-100 text-slate-900 hover:bg-slate-200"
             }`}
           >
             <span className="text-xl">{isDark ? "☀️" : "🌙"}</span>
+        
           </button>
         </header>
 

@@ -42,6 +42,10 @@ export default function AssetCodesPage() {
   const isDark = theme === "dark";
   const pageStyle = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900";
   const cardStyle = isDark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-white";
+  const sectionStyle = isDark ? "bg-slate-900 border-slate-800" : "bg-slate-50 border-slate-200";
+  const innerCardStyle = isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200";
+  const labelStyle = isDark ? "text-slate-400" : "text-slate-500";
+  const valueStyle = isDark ? "text-slate-100" : "text-slate-900";
 
   return (
     <main className={`min-h-screen px-6 py-10 ${pageStyle}`}>
@@ -49,7 +53,7 @@ export default function AssetCodesPage() {
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-semibold">Daftar Kode Aset</h1>
-            <p className="mt-2 text-slate-500">
+            <p className={`mt-2 ${labelStyle}`}>
               Lihat asset code final dan ringkasan data submit Anda.
             </p>
           </div>
@@ -59,11 +63,22 @@ export default function AssetCodesPage() {
               type="button"
               aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
               onClick={() => setTheme(isDark ? "light" : "dark")}
-              className={`inline-flex h-11 w-11 items-center justify-center rounded-full border transition ${
-                isDark ? "border-slate-600 bg-slate-800 text-yellow-300" : "border-slate-300 bg-white text-slate-900"
+              className={`inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border transition-colors ${
+                isDark ? "border-slate-600 bg-slate-800 text-yellow-300 hover:bg-slate-600" : "border-slate-300 bg-white text-slate-900 hover:bg-slate-200"
               }`}
+              
             >
-              {isDark ? "☀" : "🌙"}
+              {isDark ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="4"/>
+                  <path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/>
+                  <path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+                </svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+                </svg>
+              )}
             </button>
             <Link
               href="/form"
@@ -75,16 +90,16 @@ export default function AssetCodesPage() {
         </div>
 
         {!submission ? (
-          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6 text-slate-600">
+          <div className={`rounded-3xl border p-6 ${sectionStyle}`}>
             Tidak ada data submit yang tersimpan. Silakan kembali ke form dan submit ulang.
           </div>
         ) : (
           <>
-            <section className="mb-8 grid gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-6">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <p className="text-sm text-slate-500">Kode Aset Final</p>
+            <section className={`mb-8 grid gap-4 rounded-3xl border p-6 ${sectionStyle}`}>
+              <div className={`rounded-2xl border p-4 shadow-sm ${innerCardStyle}`}>
+                <p className={`text-sm ${labelStyle}`}>Kode Aset Final</p>
                 {submission.assetCodes.map((code, index) => (
-                  <p key={index} className="mt-3 text-lg font-semibold text-slate-900">
+                  <p key={index} className={`mt-3 text-lg font-semibold ${valueStyle}`}>
                     {index + 1}. {code}
                   </p>
                 ))}
@@ -100,99 +115,99 @@ export default function AssetCodesPage() {
             </button>
 
             <section className="space-y-6">
-              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+              <div className={`rounded-3xl border p-6 ${sectionStyle}`}>
                 <h2 className="text-xl font-semibold">Ringkasan Data Pegawai</h2>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <div>
-                    <p className="text-sm text-slate-500">Nama</p>
-                    <p className="mt-1 font-medium text-slate-900">{submission.employee.nama_pegawai}</p>
+                    <p className={`text-sm ${labelStyle}`}>Nama</p>
+                    <p className={`mt-1 font-medium ${valueStyle}`}>{submission.employee.nama_pegawai}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-500">Tipe</p>
-                    <p className="mt-1 font-medium text-slate-900">{submission.employee.employee_type}</p>
+                    <p className={`text-sm ${labelStyle}`}>Tipe</p>
+                    <p className={`mt-1 font-medium ${valueStyle}`}>{submission.employee.employee_type}</p>
                   </div>
                   {submission.employee.employee_number && (
                     <div>
-                      <p className="text-sm text-slate-500">ID Karyawan</p>
-                      <p className="mt-1 font-medium text-slate-900">{submission.employee.employee_number}</p>
+                      <p className={`text-sm ${labelStyle}`}>ID Karyawan</p>
+                      <p className={`mt-1 font-medium ${valueStyle}`}>{submission.employee.employee_number}</p>
                     </div>
                   )}
                   {submission.employee.instansi && (
                     <div>
-                      <p className="text-sm text-slate-500">Instansi</p>
-                      <p className="mt-1 font-medium text-slate-900">{submission.employee.instansi}</p>
+                      <p className={`text-sm ${labelStyle}`}>Instansi</p>
+                      <p className={`mt-1 font-medium ${valueStyle}`}>{submission.employee.instansi}</p>
                     </div>
                   )}
                   {submission.employee.nomor_ktp && (
                     <div>
-                      <p className="text-sm text-slate-500">Nomor KTP</p>
-                      <p className="mt-1 font-medium text-slate-900">{submission.employee.nomor_ktp}</p>
+                      <p className={`text-sm ${labelStyle}`}>Nomor KTP</p>
+                      <p className={`mt-1 font-medium ${valueStyle}`}>{submission.employee.nomor_ktp}</p>
                     </div>
                   )}
                   <div>
-                    <p className="text-sm text-slate-500">Position</p>
-                    <p className="mt-1 font-medium text-slate-900">{submission.employee.position}</p>
+                    <p className={`text-sm ${labelStyle}`}>Position</p>
+                    <p className={`mt-1 font-medium ${valueStyle}`}>{submission.employee.position}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-500">Gedung</p>
-                    <p className="mt-1 font-medium text-slate-900">{submission.employee.building}</p>
+                    <p className={`text-sm ${labelStyle}`}>Gedung</p>
+                    <p className={`mt-1 font-medium ${valueStyle}`}>{submission.employee.building}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-slate-500">Lokasi</p>
-                    <p className="mt-1 font-medium text-slate-900">{submission.employee.lokasi}</p>
+                    <p className={`text-sm ${labelStyle}`}>Lokasi</p>
+                    <p className={`mt-1 font-medium ${valueStyle}`}>{submission.employee.lokasi}</p>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-4">
                 {submission.assets.map((asset, index) => (
-                  <div key={index} className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                  <div key={index} className={`rounded-3xl border p-6 ${sectionStyle}`}>
                     <h3 className="text-lg font-semibold">Asset #{index + 1} - {asset.asset_code}</h3>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
                       <div>
-                        <p className="text-sm text-slate-500">Nama Asset</p>
-                        <p className="mt-1 font-medium text-slate-900">{asset.asset_name}</p>
+                        <p className={`text-sm ${labelStyle}`}>Nama Asset</p>
+                        <p className={`mt-1 font-medium ${valueStyle}`}>{asset.asset_name}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-500">Device</p>
-                        <p className="mt-1 font-medium text-slate-900">{asset.device_label}</p>
+                        <p className={`text-sm ${labelStyle}`}>Device</p>
+                        <p className={`mt-1 font-medium ${valueStyle}`}>{asset.device_label}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-500">Kondisi</p>
-                        <p className="mt-1 font-medium text-slate-900">{asset.condition_label}</p>
+                        <p className={`text-sm ${labelStyle}`}>Kondisi</p>
+                        <p className={`mt-1 font-medium ${valueStyle}`}>{asset.condition_label}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-500">Status</p>
-                        <p className="mt-1 font-medium text-slate-900">{asset.status_label}</p>
+                        <p className={`text-sm ${labelStyle}`}>Status</p>
+                        <p className={`mt-1 font-medium ${valueStyle}`}>{asset.status_label}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-500">OS</p>
-                        <p className="mt-1 font-medium text-slate-900">{asset.operating_system}</p>
+                        <p className={`text-sm ${labelStyle}`}>OS</p>
+                        <p className={`mt-1 font-medium ${valueStyle}`}>{asset.operating_system}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-500">Merk / CPU</p>
-                        <p className="mt-1 font-medium text-slate-900">{asset.merk}</p>
+                        <p className={`text-sm ${labelStyle}`}>Merk / CPU</p>
+                        <p className={`mt-1 font-medium ${valueStyle}`}>{asset.merk}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-500">Processor</p>
-                        <p className="mt-1 font-medium text-slate-900">{asset.processor}</p>
+                        <p className={`text-sm ${labelStyle}`}>Processor</p>
+                        <p className={`mt-1 font-medium ${valueStyle}`}>{asset.processor}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-500">RAM</p>
-                        <p className="mt-1 font-medium text-slate-900">{asset.ram}</p>
+                        <p className={`text-sm ${labelStyle}`}>RAM</p>
+                        <p className={`mt-1 font-medium ${valueStyle}`}>{asset.ram}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-500">Storage</p>
-                        <p className="mt-1 font-medium text-slate-900">{asset.jenis_storage} - {asset.besar_storage}</p>
+                        <p className={`text-sm ${labelStyle}`}>Storage</p>
+                        <p className={`mt-1 font-medium ${valueStyle}`}>{asset.jenis_storage} - {asset.besar_storage}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-slate-500">Grafis</p>
-                        <p className="mt-1 font-medium text-slate-900">{asset.grafis_card}</p>
+                        <p className={`text-sm ${labelStyle}`}>Grafis</p>
+                        <p className={`mt-1 font-medium ${valueStyle}`}>{asset.grafis_card}</p>
                       </div>
                       {asset.softwares && asset.softwares.length > 0 && (
                         <div className="sm:col-span-2">
-                          <p className="text-sm text-slate-500">Software</p>
-                          <p className="mt-1 font-medium text-slate-900">{asset.softwares.join(", ")}</p>
+                          <p className={`text-sm ${labelStyle}`}>Software</p>
+                          <p className={`mt-1 font-medium ${valueStyle}`}>{asset.softwares.join(", ")}</p>
                         </div>
                       )}
                     </div>
