@@ -149,15 +149,15 @@ export default function FormPage() {
   );
 
   const assetNameLabel = isLaptopCurrent
-    ? "Nama & Model Perangkat"
+    ? "Nama Perangkat"
     : isPCCurrent
     ? "Nama Komputer"
-    : "Nama Perangkat & Model";
+    : "Nama Laptop";
   const assetNamePlaceholder = isLaptopCurrent
-    ? "contoh: Dell XPS 15 9500"
+    ? "contoh: DESKTOP-ABC123 atau nama custom"
     : isPCCurrent
     ? "contoh: DESKTOP-ABC123 atau nama custom"
-    : "contoh: Dell XPS 15 9500";
+    : "contoh: DESKTOP-ABC123 atau nama custom";
 
   const merkLabel = "Merk / Jenis CPU";
   const merkPlaceholder = isPCCurrent ? "contoh: Intel, AMD" : "contoh: Asus, Dell, Lenovo, HP";
