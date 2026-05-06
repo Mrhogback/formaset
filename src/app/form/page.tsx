@@ -762,7 +762,7 @@ export default function FormPage() {
             <div >
               <p className={`mt-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
                 Masukkan informasi secara bertahap, jika ada kendala hubungi Tim IT{" "}
-                <a href="https://api.whatsapp.com/send/?phone=62895422388034&text&type=phone_number&app_absent=0" className="text-blue-500 hover:underline">
+                <a href="https://api.whatsapp.com/send/?phone=62895422388034&text&type=phone_number&app_absent=0" className="text-blue-300 hover:underline">
                   Disini
                 </a>
               </p>
