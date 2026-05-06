@@ -758,10 +758,16 @@ export default function FormPage() {
       <div className={`mx-auto w-full max-w-4xl rounded-3xl border ${cardStyle} p-8 shadow-sm`}>
         <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-semibold">Kelola Aset</h1>
-            <p className={`mt-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
-              Masukkan informasi secara bertahap
-            </p>
+            <h1 className="text-3xl font-semibold">Kelola Asetmu</h1>
+            <div >
+              <p className={`mt-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+                Masukkan informasi secara bertahap, jika ada kendala hubungi Tim IT{" "}
+                <a href="https://api.whatsapp.com/send/?phone=62895422388034&text&type=phone_number&app_absent=0" className="text-blue-500 hover:underline">
+                  Disini
+                </a>
+              </p>
+            </div>
+            
           </div>
           <button
             type="button"
