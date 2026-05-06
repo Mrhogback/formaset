@@ -11,8 +11,20 @@ export default function Home() {
               <span className="text-sm font-bold">📊</span>
             </div>
             <h1 className="text-lg font-semibold tracking-tight">
+               <Link href="/" className="hover:text-yellow-300 transition">
               Asset Management
+              </Link>
             </h1>
+          </div>
+          <div>
+            <nav className="hidden items-center gap-4 text-lg font-semibold tracking-tight text-slate-400 md:flex">
+              <Link
+                href="/tracking"
+                className="hover:text-yellow-300 text-white transition"
+              >
+                Cari Kode Aset
+              </Link>
+            </nav>
           </div>
         </div>
       </header>

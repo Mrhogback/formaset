@@ -1160,10 +1160,12 @@ export default function FormPage() {
 
           {step === 3 && (
             <section className="space-y-6">
-              <h2 className="text-lg font-semibold text-slate-800">Keamanan Perangkat</h2>
+              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Keamanan Perangkat</h2>
 
               {assets.length === 0 ? (
-                <p className="text-slate-500">Tambahkan asset terlebih dahulu untuk melihat checklist keamanan.</p>
+                <p className={isDark ? "text-slate-400" : "text-slate-500"}>
+                  Tambahkan asset terlebih dahulu untuk melihat checklist keamanan.
+                </p>
               ) : checklistItems.length === 0 ? (
                 <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6">
                   <div className="flex items-start gap-3">
@@ -1189,28 +1191,54 @@ export default function FormPage() {
                       <div key={assetIndex} className={`rounded-3xl border p-6 ${panelStyle}`}>
                         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div>
-                            <h3 className="text-lg font-semibold text-slate-900">Keamanan Perangkat — {asset.asset_name} / {asset.asset_code}</h3>
-                            <p className="text-sm text-slate-500">{checkedCount} dari {totalCount} item sudah dicentang</p>
+                            <h3 className={`text-lg font-semibold ${isDark ? "text-slate-100" : "text-slate-900"}`}>
+                              Keamanan Perangkat — {asset.asset_name} / {asset.asset_code}
+                            </h3>
+                            <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                              {checkedCount} dari {totalCount} item sudah dicentang
+                            </p>
                           </div>
                         </div>
 
                         {groups.length === 0 ? (
-                          <p className="text-sm text-slate-500">Tidak ada checklist keamanan untuk perangkat ini.</p>
+                          <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                            Tidak ada checklist keamanan untuk perangkat ini.
+                          </p>
                         ) : (
                           <div className="space-y-6">
                             {groups.map((group) => (
-                              <div key={group.category} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                <p className="mb-4 text-sm font-semibold text-slate-800">{group.label}</p>
+                              <div
+                                key={group.category}
+                                className={`rounded-2xl border p-4 ${
+                                  isDark
+                                    ? "border-slate-700 bg-slate-800"
+                                    : "border-slate-200 bg-slate-50"
+                                }`}
+                              >
+                                <p className={`mb-4 text-sm font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>
+                                  {group.label}
+                                </p>
                                 <div className="space-y-3">
                                   {group.items.map((item) => (
-                                    <label key={item.id} className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-slate-300">
+                                    <label
+                                      key={item.id}
+                                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
+                                        isDark
+                                          ? "border-slate-600 bg-slate-700 hover:border-slate-500"
+                                          : "border-slate-200 bg-white hover:border-slate-300"
+                                      }`}
+                                    >
                                       <input
                                         type="checkbox"
                                         checked={Boolean(assetChecklistStates[assetIndex]?.[item.id])}
                                         onChange={(e) => updateAssetChecklist(assetIndex, item.id, e.target.checked)}
-                                        className="mt-1 h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+                                        className={`mt-1 h-4 w-4 rounded border-slate-300 focus:ring-slate-500 ${
+                                          isDark ? "text-slate-300" : "text-slate-900"
+                                        }`}
                                       />
-                                      <span className="text-sm text-slate-700">{item.item_text}</span>
+                                      <span className={`text-sm ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                                        {item.item_text}
+                                      </span>
                                     </label>
                                   ))}
                                 </div>
