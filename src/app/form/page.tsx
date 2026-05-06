@@ -220,11 +220,11 @@ export default function FormPage() {
     ? "contoh: DESKTOP-ABC123 atau nama custom"
     : "contoh: DESKTOP-ABC123 atau nama custom";
 
-  const merkLabel = "Merk / Jenis CPU";
-  const merkPlaceholder = isPCCurrent ? "contoh: Intel, AMD" : "contoh: Asus, Dell, Lenovo, HP";
+  const merkLabel = "Merk + System Model";
+  const merkPlaceholder = isPCCurrent ? "contoh: Intel NUC 11, Dell OptiPlex 7070" : "contoh: Dell Latitude 7490, Lenovo IdeaPad 3";
   const merkHint = isPCCurrent
-    ? "Cukup tulis merek prosesor tanpa model atau generasi"
-    : "Masukkan merk laptop jika jenis perangkat laptop, jika jenis perangkat PC isi dengan nama merk CPU";
+    ? "Masukkan Merk + System Model perangkat"
+    : "Masukkan Merk + System Model perangkat";
 
   const dynamicFieldMeta = {
     ...computerFieldMeta,

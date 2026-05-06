@@ -16,7 +16,8 @@ export const computerFieldMeta: Record<ComputerFieldName, { label: string; place
     placeholder: "contoh: Windows 11, Ubuntu 22.04, macOS Ventura",
   },
   merk: {
-    label: "Merk / Jenis CPU",
+    label: "Merk + System Model",
+    placeholder: "contoh: Dell Latitude 7490, Lenovo IdeaPad 3, Intel NUC 11",
   },
   processor: {
     label: "Processor",
