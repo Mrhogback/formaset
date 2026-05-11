@@ -124,20 +124,18 @@ export default function TrackingPage() {
         {/* Header */}
         <header className="border-b border-slate-800">
             <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-md bg-blue-600 shadow-md">
-                <span className="text-sm font-bold">📊</span>
+                <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-md bg-blue-600 shadow-md">
+                    <span className="text-sm font-bold">📊</span>
+                    </div>
+                    <h1 className="text-lg font-semibold tracking-tight">
+                        <Link href="/" className="hover:text-yellow-300 text-white transition">
+                            Asset Management
+                        </Link>
+                    </h1>
                 </div>
-                <h1 className="text-lg font-semibold tracking-tight">
-                    <Link href="/" className="hover:text-yellow-300 text-white transition">
-                        Asset Management
-                    </Link>
-                </h1>
-            </div>
-            
             </div>
         </header>
-
         
         <div className="text-center mb-8 mt-8">
           <h1 className="text-3xl font-bold text-white mb-2">Tracking Aset</h1>
@@ -188,7 +186,7 @@ export default function TrackingPage() {
         {asset && !loading && !error && (
           <div className="space-y-6">
             {/* Asset Info */}
-            <div className="bg-white rounded-lg shadow-sm border p-6">
+            <div className="bg-slate-900 rounded-lg shadow-sm border p-6">
               <h2 className="text-xl font-semibold text-gray-900 mb-4">Informasi Aset</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

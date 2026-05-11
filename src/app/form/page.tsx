@@ -815,7 +815,7 @@ export default function FormPage() {
                   step === tab ? "bg-slate-900 text-white border-slate-900" : "bg-slate-100 text-slate-500 border-slate-200"
                 }`}
               >
-                {tab === 1 && "Pegawai"}
+                {tab === 1 && "Identitas Pegawai"}
                 {tab === 2 && "Tambah Asset"}
                 {tab === 3 && "Keamanan Perangkat"}
                 {tab === 4 && "Review & Submit"}
@@ -968,7 +968,7 @@ export default function FormPage() {
           {step === 2 && (
             <section className="space-y-6">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-slate-800">Tambah Asset</h2>
+                <h2 className="text-lg font-semibold dark:text-slate-100 text-slate-900">Tambah Asset</h2>
                 <button
                   type="button"
                   onClick={addAssetToList}
@@ -1101,7 +1101,7 @@ export default function FormPage() {
                     {currentSoftwares.map((software, index) => (
                       <div key={index} className="grid gap-4 lg:grid-cols-[1fr_auto]">
                         <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-700">Nama Software {index + 1}</label>
+                          <label className="mb-2 block text-sm font-medium text-slate-700">Nama Software {index + 1} +  Version</label>
                           <input
                             value={software.name}
                             onChange={(e) => updateSoftware(index, e.target.value)}
