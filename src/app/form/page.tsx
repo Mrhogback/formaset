@@ -834,7 +834,14 @@ export default function FormPage() {
           {step === 1 && (
             <section className="space-y-6">
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Nama Pegawai</label>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  
+                    Nama Pegawai
+                
+                  <span className="mt-1 block text-xs text-slate-500 italic">
+                    Masukkan nama lengkap tanpa singkatan
+                  </span>
+                </label>
                 <input
                   {...register("nama_pegawai")}
                   className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
