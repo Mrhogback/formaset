@@ -22,7 +22,7 @@ export default function Home() {
                 href="/tracking"
                 className="hover:text-yellow-300 text-white transition"
               >
-                Cari Kode Aset
+                🔎 Cari Kode Aset
               </Link>
             </nav>
           </div>
