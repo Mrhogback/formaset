@@ -760,7 +760,7 @@ export default function FormPage() {
           <div>
             <h1 className="text-3xl font-semibold">Kelola Asetmu</h1>
             <div >
-              <p className={`mt-2 ${isDark ? "text-slate-300" : "text-slate-600"}`}>
+              <p className={`mt-2 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
                 Masukkan informasi secara bertahap, jika ada kendala hubungi Tim IT{" "}
                 <a href="https://api.whatsapp.com/send/?phone=62895422388034&text&type=phone_number&app_absent=0" className="text-blue-300 hover:underline">
                   Disini
@@ -967,16 +967,7 @@ export default function FormPage() {
 
           {step === 2 && (
             <section className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold dark:text-slate-100 text-slate-900">Tambah Asset</h2>
-                <button
-                  type="button"
-                  onClick={addAssetToList}
-                  className="rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500"
-                >
-                  Tambah ke Daftar
-                </button>
-              </div>
+              <h2 className="text-lg font-semibold dark:text-slate-100 text-slate-900">Tambah Asset</h2>
 
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">Pilih Device</label>
@@ -1122,6 +1113,16 @@ export default function FormPage() {
                 </>
               )}
 
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={addAssetToList}
+                  className="w-full sm:w-auto rounded-2xl bg-emerald-600 px-8 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-emerald-500"
+                >
+                  Tambah ke Daftar
+                </button>
+              </div>
+
               <div className="border-t pt-6">
                 <h3 className="mb-4 text-lg font-semibold text-slate-800">Daftar Asset yang Ditambahkan</h3>
                 {assets.length === 0 ? (
@@ -1184,6 +1185,7 @@ export default function FormPage() {
                 <div className="space-y-6">
                   {assets.map((asset, assetIndex) => {
                     const groups = getChecklistGroupsForAsset(asset);
+                    const allItems = groups.flatMap((group) => group.items);
                     const checkedCount = Object.values(assetChecklistStates[assetIndex] || {}).filter(Boolean).length;
                     const totalCount = groups.reduce((total, group) => total + group.items.length, 0);
 
@@ -1200,50 +1202,34 @@ export default function FormPage() {
                           </div>
                         </div>
 
-                        {groups.length === 0 ? (
+                        {allItems.length === 0 ? (
                           <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
                             Tidak ada checklist keamanan untuk perangkat ini.
                           </p>
                         ) : (
-                          <div className="space-y-6">
-                            {groups.map((group) => (
-                              <div
-                                key={group.category}
-                                className={`rounded-2xl border p-4 ${
+                          <div className="space-y-3">
+                            {allItems.map((item) => (
+                              <label
+                                key={item.id}
+                                className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
                                   isDark
-                                    ? "border-slate-700 bg-slate-800"
-                                    : "border-slate-200 bg-slate-50"
+                                    ? "border-slate-600 bg-slate-700 hover:border-slate-500"
+                                    : "border-slate-200 bg-white hover:border-slate-300"
                                 }`}
                               >
-                                <p className={`mb-4 text-sm font-semibold ${isDark ? "text-slate-200" : "text-slate-800"}`}>
-                                  {group.label}
-                                </p>
-                                <div className="space-y-3">
-                                  {group.items.map((item) => (
-                                    <label
-                                      key={item.id}
-                                      className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${
-                                        isDark
-                                          ? "border-slate-600 bg-slate-700 hover:border-slate-500"
-                                          : "border-slate-200 bg-white hover:border-slate-300"
-                                      }`}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={Boolean(assetChecklistStates[assetIndex]?.[item.id])}
-                                        onChange={(e) => updateAssetChecklist(assetIndex, item.id, e.target.checked)}
-                                        className={`mt-1 h-4 w-4 rounded border-slate-300 focus:ring-slate-500 ${
-                                          isDark ? "text-slate-300" : "text-slate-900"
-                                        }`}
-                                      />
-                                      <span className={`text-sm ${isDark ? "text-slate-300" : "text-slate-700"}`}>
-                                        {item.item_text}
-                                      </span>
-                                    </label>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
+                                  <input
+                                    type="checkbox"
+                                    checked={Boolean(assetChecklistStates[assetIndex]?.[item.id])}
+                                    onChange={(e) => updateAssetChecklist(assetIndex, item.id, e.target.checked)}
+                                    className={`mt-1 h-4 w-4 rounded border-slate-300 focus:ring-slate-500 ${
+                                      isDark ? "text-slate-300" : "text-slate-900"
+                                    }`}
+                                  />
+                                  <span className={`text-sm ${isDark ? "text-slate-300" : "text-slate-700"}`}>
+                                    {item.item_text}
+                                  </span>
+                              </label>
+                         ))}
                           </div>
                         )}
                       </div>
@@ -1309,12 +1295,12 @@ export default function FormPage() {
           )}
 
           <div className="flex flex-col gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex gap-3">
+            <div className="flex gap-3 ">
               <button
                 type="button"
                 disabled={step === 1}
                 onClick={() => setStep((current) => Math.max(current - 1, 1))}
-                className="rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                className="cursor-pointer rounded-2xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-900 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Kembali
               </button>
@@ -1322,7 +1308,7 @@ export default function FormPage() {
                 <button
                   type="button"
                   onClick={nextStep}
-                  className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+                  className="cursor-pointer rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
                 >
                   Selanjutnya
                 </button>
@@ -1331,7 +1317,7 @@ export default function FormPage() {
                 <button
                   type="button"
                   onClick={() => setStep(3)}
-                  className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+                  className="cursor-pointer rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
                 >
                   Lanjut ke Keamanan
                 </button>
@@ -1340,7 +1326,7 @@ export default function FormPage() {
                 <button
                   type="button"
                   onClick={() => setStep(4)}
-                  className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
+                  className="cursor-pointer rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-700"
                 >
                   Lanjut ke Review
                 </button>

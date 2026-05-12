@@ -97,6 +97,18 @@ export default function TrackingPage() {
     }
   };
 
+  const InfoItem = ({ label, value }: { label: string; value: string | undefined | null }) => (
+    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4">
+      <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+        {label}
+      </p>
+
+      <p className="mt-2 text-sm font-semibold text-gray-900 wrap-break-word">
+        {value || "-"}
+      </p>
+    </div>
+  );
+
   const getChecklistGroups = () => {
     if (!asset?.asset_security_checklist) return [];
 
@@ -158,7 +170,7 @@ export default function TrackingPage() {
                 <button
                     onClick={handleSearch}
                     disabled={loading || !searchQuery.trim()}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed transition-colors font-medium"
+                    className="cursor-pointer px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed transition-colors font-medium"
                 >
                     {loading ? "Mencari..." : "Cari"}
                 </button>
@@ -184,81 +196,127 @@ export default function TrackingPage() {
 
         {/* Asset Data */}
         {asset && !loading && !error && (
-          <div className="space-y-6">
+          <div className="space-y-6 my-5">
             {/* Asset Info */}
-            <div className="bg-slate-900 rounded-lg shadow-sm border p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Informasi Aset</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Kode Aset</p>
-                  <p className="font-semibold text-gray-900">{asset.asset_code}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Nama Aset</p>
-                  <p className="font-semibold text-gray-900">{asset.asset_name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Jenis Perangkat</p>
-                  <p className="font-semibold text-gray-900">{asset.device?.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Kondisi</p>
-                  <p className="font-semibold text-gray-900">{asset.kondisi?.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Status</p>
-                  <p className="font-semibold text-gray-900">{asset.status?.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Pegawai</p>
-                  <p className="font-semibold text-gray-900">{asset.employee?.nama_pegawai}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Lokasi</p>
-                  <p className="font-semibold text-gray-900">
-                    {asset.employee?.gedung?.building_name} - {asset.employee?.lokasi?.room_name}
-                  </p>
-                </div>
+            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+              <div className="border-b border-gray-100 px-6 py-4">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  Informasi Aset
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Detail identitas dan lokasi perangkat
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-5 p-6 md:grid-cols-2 xl:grid-cols-3">
+                <InfoItem
+                  label="Kode Aset"
+                  value={asset.asset_code}
+                />
+
+                <InfoItem
+                  label="Nama Aset"
+                  value={asset.asset_name}
+                />
+
+                <InfoItem
+                  label="Jenis Perangkat"
+                  value={asset.device?.name}
+                />
+
+                <InfoItem
+                  label="Kondisi"
+                  value={asset.kondisi?.name}
+                />
+
+                <InfoItem
+                  label="Status"
+                  value={asset.status?.name}
+                />
+
+                <InfoItem
+                  label="Pegawai"
+                  value={asset.employee?.nama_pegawai}
+                />
+
+                <InfoItem
+                  label="Lokasi"
+                  value={`${asset.employee?.gedung?.building_name || "-"} - ${
+                    asset.employee?.lokasi?.room_name || "-"
+                  }`}
+                />
               </div>
             </div>
 
-            {/* Specifications (if Laptop/PC) */}
+            {/* Specifications */}
             {asset.spec_computer && asset.spec_computer.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Spesifikasi Teknis</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                <div className="border-b border-gray-100 px-6 py-4">
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Spesifikasi Teknis
+                  </h2>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Detail hardware dan software perangkat
+                  </p>
+                </div>
+
+                <div className="space-y-6 p-6">
                   {asset.spec_computer.map((spec, index) => (
-                    <div key={index} className="space-y-3">
-                      <div>
-                        <p className="text-sm text-gray-500">Sistem Operasi</p>
-                        <p className="font-semibold text-gray-900">{spec.operating_system}</p>
+                    <div
+                      key={index}
+                      className="rounded-2xl border border-gray-200 bg-gray-50 p-5"
+                    >
+                      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+                        <InfoItem
+                          label="Sistem Operasi"
+                          value={spec.operating_system}
+                        />
+
+                        <InfoItem
+                          label="Merk / CPU"
+                          value={spec.merk}
+                        />
+
+                        <InfoItem
+                          label="Processor"
+                          value={spec.processor}
+                        />
+
+                        <InfoItem
+                          label="RAM"
+                          value={spec.ram}
+                        />
+
+                        <InfoItem
+                          label="Storage"
+                          value={`${spec.jenis_storage} - ${spec.besar_storage}`}
+                        />
+
+                        <InfoItem
+                          label="Grafis"
+                          value={spec.grafis_card}
+                        />
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Merk / CPU</p>
-                        <p className="font-semibold text-gray-900">{spec.merk}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Processor</p>
-                        <p className="font-semibold text-gray-900">{spec.processor}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">RAM</p>
-                        <p className="font-semibold text-gray-900">{spec.ram}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Storage</p>
-                        <p className="font-semibold text-gray-900">{spec.jenis_storage} - {spec.besar_storage}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Grafis</p>
-                        <p className="font-semibold text-gray-900">{spec.grafis_card}</p>
-                      </div>
-                      {spec.asset_software && spec.asset_software.length > 0 && (
-                        <div>
-                          <p className="text-sm text-gray-500">Software</p>
-                          <p className="font-semibold text-gray-900">{spec.asset_software.map(s => s.name).join(", ")}</p>
-                        </div>
-                      )}
+
+                      {spec.asset_software &&
+                        spec.asset_software.length > 0 && (
+                          <div className="mt-5">
+                            <p className="mb-3 text-sm font-medium text-gray-500">
+                              Software Terinstall
+                            </p>
+
+                            <div className="flex flex-wrap gap-2">
+                              {spec.asset_software.map((software, i) => (
+                                <span
+                                  key={i}
+                                  className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700"
+                                >
+                                  {software.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                     </div>
                   ))}
                 </div>
@@ -266,33 +324,94 @@ export default function TrackingPage() {
             )}
 
             {/* Security Checklist */}
-            {asset.asset_security_checklist && asset.asset_security_checklist.length > 0 && (
-              <div className="bg-white rounded-lg shadow-sm border p-6">
-                <h2 className="text-xl font-semibold text-gray-900 mb-4">Checklist Keamanan</h2>
-                <div className="space-y-6">
-                  {getChecklistGroups().map((group) => (
-                    <div key={group.category} className="border border-gray-200 rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-800 mb-3">{group.label}</h3>
-                      <div className="space-y-2">
-                        {group.items.map((item, index) => (
-                          <div key={index} className="flex items-start gap-3">
-                            <span className={`text-sm ${item.is_checked ? 'text-green-600' : 'text-red-600'}`}>
-                              {item.is_checked ? '✅' : '❌'}
-                            </span>
-                            <span className={`text-sm ${item.is_checked ? 'text-gray-900' : 'text-gray-500'}`}>
-                              {item.security_checklist_items.item_text}
-                            </span>
+            {asset.asset_security_checklist &&
+              asset.asset_security_checklist.length > 0 && (
+                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                  <div className="border-b border-gray-100 px-6 py-4">
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Checklist Keamanan
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Status keamanan perangkat berdasarkan kategori
+                    </p>
+                  </div>
+
+                  <div className="space-y-5 p-6">
+                    {getChecklistGroups().map((group) => {
+                      const checkedCount = group.items.filter(
+                        (item) => item.is_checked
+                      ).length;
+
+                      const progress =
+                        (checkedCount / group.items.length) * 100;
+
+                      return (
+                        <div
+                          key={group.category}
+                          className="rounded-2xl border border-gray-200 p-5"
+                        >
+                          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <h3 className="font-semibold text-gray-800">
+                                {group.label}
+                              </h3>
+
+                              <p className="mt-1 text-sm text-gray-500">
+                                {checkedCount} dari {group.items.length} item
+                                dicentang
+                              </p>
+                            </div>
+
+                            <div className="w-full sm:w-48">
+                              <div className="h-2 overflow-hidden rounded-full bg-gray-200">
+                                <div
+                                  className="h-full rounded-full bg-green-500 transition-all"
+                                  style={{ width: `${progress}%` }}
+                                />
+                              </div>
+                            </div>
                           </div>
-                        ))}
-                      </div>
-                      <div className="mt-3 text-sm text-gray-600">
-                        {group.items.filter(item => item.is_checked).length} dari {group.items.length} item dicentang
-                      </div>
-                    </div>
-                  ))}
+
+                          <div className="space-y-3">
+                            {group.items.map((item, index) => (
+                              <div
+                                key={index}
+                                className={`flex items-start gap-3 rounded-xl border p-3 transition ${
+                                  item.is_checked
+                                    ? "border-green-200 bg-green-50"
+                                    : "border-red-200 bg-red-50"
+                                }`}
+                              >
+                                <div
+                                  className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold ${
+                                    item.is_checked
+                                      ? "bg-green-100 text-green-700"
+                                      : "bg-red-100 text-red-700"
+                                  }`}
+                                >
+                                  {item.is_checked ? "✓" : "✕"}
+                                </div>
+
+                                <div className="flex-1">
+                                  <p
+                                    className={`text-sm font-medium ${
+                                      item.is_checked
+                                        ? "text-gray-800"
+                                        : "text-gray-600"
+                                    }`}
+                                  >
+                                    {item.security_checklist_items.item_text}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
         )}
       </div>
