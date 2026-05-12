@@ -16,9 +16,9 @@ const formSchema = z.object({
   employee_number: z.string().optional(),
   instansi: z.string().optional(),
   nomor_ktp: z.string().optional(),
-  building_id: z.string().min(1, "Gedung wajib dipilih"),
+  building_id: z.string().min(1, "Direktorat wajib dipilih"),
   position: z.string().min(1, "Position wajib dipilih"),
-  lokasi: z.string().min(1, "Lokasi wajib dipilih"),
+  lokasi: z.string().min(1, "Ruangan wajib dipilih"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -933,12 +933,12 @@ export default function FormPage() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Gedung</label>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Direktorat</label>
                   <select
                     {...register("building_id")}
                     className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle}`}
                   >
-                    <option value="">Pilih gedung</option>
+                    <option value="">Pilih Direktorat</option>
                     {buildings.map((building) => (
                       <option key={building.id} value={building.id}>
                         {building.label}
@@ -951,13 +951,13 @@ export default function FormPage() {
                 </div>
 
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Lokasi</label>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Ruangan</label>
                   <select
                     {...register("lokasi")}
                     disabled={!selectedBuildingId}
                     className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle} ${!selectedBuildingId ? "bg-slate-100 text-slate-500" : ""}`}
                   >
-                    <option value="">{selectedBuildingId ? "Pilih lokasi" : "Pilih gedung dahulu"}</option>
+                    <option value="">{selectedBuildingId ? "Pilih ruangan" : "Pilih Direktorat dahulu"}</option>
                     {locations.map((location) => (
                       <option key={location.id} value={location.id}>
                         {location.label}
@@ -1264,7 +1264,7 @@ export default function FormPage() {
                     </>
                   )}
                   <p><strong>Position:</strong> {positions.find(p => p.id === getValues("position"))?.label}</p>
-                  <p><strong>Gedung:</strong> {buildings.find(b => b.id === getValues("building_id"))?.label}</p>
+                  <p><strong>Direktorat</strong> {buildings.find(b => b.id === getValues("building_id"))?.label}</p>
                   <p><strong>Lokasi:</strong> {locations.find(l => l.id === getValues("lokasi"))?.label}</p>
                 </div>
               </div>
