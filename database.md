@@ -11,12 +11,15 @@
 ```
 building_locations
   └── room_locations (building_id FK)
-        └── employees (lokasi FK)
+        └── employees (lokasi FK, building_id FK)
               └── asset (employee_id FK)
                     ├── spec_computer (asset_id FK)
                     │     └── asset_software (spec_computer_id FK)
-                    └── asset_security_checklist (asset_id FK)
-                          └── security_checklist_items (checklist_item_id FK)
+                    ├── asset_security_checklist (asset_id FK)
+                    │     └── security_checklist_items (checklist_item_id FK)
+                    └── asset_shift_users (asset_id FK)
+                          ├── employees (employee_id FK)
+                          └── shifts (shift_id FK)
 
 organizational_structure
   └── employees (position FK)
@@ -108,14 +111,14 @@ Menyimpan data tambahan pegawai berdasarkan tipe.
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | id | int8 | PK, auto increment |
-| employee_id | uuid | FK → employees.id ON DELETE CASCADE |
+| employee_id | uuid | FK → employees.id |
 | employee_number | varchar | ID Karyawan (hanya diisi jika Karyawan) |
 | instansi | varchar | Nama instansi (hanya diisi jika Non-Karyawan) |
 | nomor_ktp | varchar | Nomor KTP (hanya diisi jika Non-Karyawan) |
 | created_at | timestamptz | Default now() |
 
 > Jika tipe Karyawan: isi `employee_number`, kolom lain null.
-> Jika tipe Non-Karyawan: isi `instansi` atau `nomor_ktp` (minimal salah satu), kolom lain null jika tidak diisi.
+> Jika tipe Non-Karyawan: isi `instansi` & `nomor_ktp`, kolom lain null.
 
 ---
 
@@ -125,7 +128,7 @@ Menyimpan jenis perangkat/aset.
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | id | uuid | PK, gen_random_uuid() |
-| name | varchar | Nama device (contoh: Laptop, PC) |
+| name | varchar | Nama device (contoh: Laptop, Personal Computer) |
 | device_prefix | varchar | Prefix device (dipakai di asset_code) |
 | created_at | timestamptz | Default now() |
 
@@ -137,7 +140,7 @@ Menyimpan data kondisi aset.
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | id | int8 | PK, auto increment |
-| name | varchar | Nama kondisi (contoh: Baik, Rusak) |
+| name | varchar | Nama kondisi (A — Baik, B — Ada Catatan, C — Rusak, D — Tidak Digunakan) |
 | created_at | timestamptz | Default now() |
 
 ---
@@ -160,8 +163,8 @@ Menyimpan data utama aset.
 |---|---|---|
 | id | uuid | PK, gen_random_uuid() |
 | employee_id | uuid | FK → employees.id |
-| asset_code | text | Auto-generate via RPC generate_asset_code() |
-| asset_name | text | Nama aset |
+| asset_code | text | UNIQUE, auto-generate via RPC insert_asset_with_code() |
+| asset_name | text | Nama/model spesifik perangkat |
 | asset_type | uuid | FK → device.id |
 | kondisi_aset | int8 | FK → asset_condition.id |
 | asset_status | int8 | FK → asset_status.id |
@@ -171,14 +174,14 @@ Menyimpan data utama aset.
 ---
 
 ## Tabel: `spec_computer`
-Menyimpan spesifikasi teknis untuk aset jenis Laptop & PC.
+Menyimpan spesifikasi teknis untuk aset jenis Laptop & Personal Computer.
 
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | id | int8 | PK, auto increment |
 | asset_id | uuid | FK → asset.id |
 | operating_system | text | Sistem operasi |
-| merk | text | Merek perangkat |
+| merk | text | Merk laptop / Merk CPU untuk PC |
 | processor | text | Tipe processor |
 | ram | text | Kapasitas RAM |
 | jenis_storage | text | Jenis storage (SSD/HDD) |
@@ -186,7 +189,7 @@ Menyimpan spesifikasi teknis untuk aset jenis Laptop & PC.
 | grafis_card | text | Kartu grafis |
 | created_at | timestamptz | Default now() |
 
-> Hanya muncul di form jika device yang dipilih adalah Laptop atau PC.
+> Hanya diisi jika device adalah Laptop atau Personal Computer.
 
 ---
 
@@ -217,11 +220,6 @@ Menyimpan master daftar item checklist keamanan perangkat.
 > Prefix difilter di frontend — tidak ditampilkan ke user.
 > Item tanpa prefix ditampilkan untuk semua jenis perangkat.
 
-Kategori dan jumlah item:
-- LOW: 8 item (6 umum, 2 khusus Laptop)
-- MEDIUM: 7 item (4 umum, 1 khusus PC, 2 khusus Laptop)
-- HIGH: 5 item (semua umum)
-
 ---
 
 ## Tabel: `asset_security_checklist`
@@ -230,53 +228,83 @@ Menyimpan hasil checklist keamanan per aset.
 | Kolom | Tipe | Keterangan |
 |---|---|---|
 | id | int8 | PK, auto increment |
-| asset_id | uuid | FK → asset.id ON DELETE CASCADE |
+| asset_id | uuid | FK → asset.id |
 | checklist_item_id | int8 | FK → security_checklist_items.id |
 | is_checked | boolean | true jika dicentang user, false jika tidak |
 | created_at | timestamptz | Default now() |
 
-> Setiap aset menyimpan semua item yang relevan (berdasarkan device type).
-> Item tidak wajib dicentang — semua opsional.
-> Hasil checklist disimpan bersamaan dengan insert asset saat submit form.
+---
+
+## Tabel: `shifts`
+Menyimpan data shift kerja.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| id | int8 | PK, auto increment |
+| shift_name | varchar | Nama shift (Pagi / Siang / Malam) |
+| created_at | timestamptz | Default now() |
+
+Data default: `Pagi`, `Siang`, `Malam`
+
+---
+
+## Tabel: `asset_shift_users`
+Menyimpan data pegawai yang memakai aset secara bergantian per shift.
+
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| id | int8 | PK, auto increment |
+| asset_id | uuid | FK → asset.id |
+| employee_id | uuid | FK → employees.id |
+| shift_id | int8 | FK → shifts.id |
+| created_at | timestamptz | Default now() |
+
+> Diisi jika 1 perangkat digunakan lebih dari 1 orang secara bergantian per shift.
+> 1 shift hanya bisa diisi 1 pegawai per aset.
 
 ---
 
 ## Asset Code Generation
 
-Asset code di-generate otomatis via Supabase RPC function `generate_asset_code`.
-
-Format: `[building_name]-[room_prefix]-[device_prefix]-[urutan per room]`
+Format: `[building_name]-[room_prefix]-[device_prefix]-[urutan per room per device]`
 Contoh: `MFG-ENG-LP-001`
 
 ```ts
-const { data: assetCode } = await supabase.rpc('generate_asset_code', {
-  p_room_id: selectedRoomId,   // int8, dari employees.lokasi
-  p_device_id: selectedDeviceId // uuid, dari device.id
+const { data: assetId } = await supabase.rpc('insert_asset_with_code', {
+  p_employee_id: employeeId,
+  p_device_id: selectedDeviceId,
+  p_room_id: selectedRoomId,
+  p_asset_name: assetName,
+  p_kondisi_aset: kondisiId,
+  p_asset_status: statusId,
+  p_photo_url: photoUrl
 })
 ```
 
-- Urutan reset per room (setiap room mulai dari 001)
-- Dipanggil setelah user pilih lokasi dan device di form
-- Hasilnya disimpan ke kolom `asset.asset_code` saat submit
+- Urutan reset per room per device (MFG-ENG-LP-001 dan MFG-ENG-PC-001 terpisah)
+- asset_code bersifat UNIQUE
+- Menggunakan pg_advisory_xact_lock untuk mencegah duplikat saat submit bersamaan
 
 ---
 
 ## Alur Insert Saat Submit Form
 
 ```
-1. INSERT ke employees (nama_pegawai, employee_type_id, position, building_id, lokasi) → dapat employee_id
+1. INSERT ke employees → dapat employee_id
 2. INSERT ke employee_details (employee_id):
    - Jika Karyawan: isi employee_number
    - Jika Non-Karyawan: isi instansi & nomor_ktp
 3. Loop setiap asset:
    a. Upload foto ke storage asset_photo → dapat photo_url
-   b. Panggil RPC insert_asset_with_code(employee_id, device_id, room_id, ...) → dapat asset_id
-   c. Jika Laptop/Personal Computer: INSERT ke spec_computer (asset_id) → dapat spec_computer_id
-   d. INSERT ke asset_software (spec_computer_id) untuk setiap software
-   e. INSERT ke asset_security_checklist untuk setiap item checklist yang relevan:
-      - asset_id: dari hasil insert asset
-      - checklist_item_id: id item dari security_checklist_items
-      - is_checked: true jika dicentang user, false jika tidak
+   b. Panggil RPC insert_asset_with_code(...) → dapat asset_id
+   c. Jika Laptop/Personal Computer:
+      - INSERT ke spec_computer (asset_id) → dapat spec_computer_id
+      - INSERT ke asset_software (spec_computer_id) untuk setiap software
+   d. INSERT ke asset_security_checklist untuk setiap item checklist:
+      { asset_id, checklist_item_id, is_checked }
+   e. Jika multi-shift diaktifkan:
+      - INSERT ke asset_shift_users untuk setiap shift yang diisi:
+        { asset_id, employee_id, shift_id }
 ```
 
 ---
@@ -288,10 +316,14 @@ const { data: assetCode } = await supabase.rpc('generate_asset_code', {
 | building_locations | building_name | Bukan `name` |
 | room_locations | room_prefix | Bukan `prefix` |
 | device | device_prefix | Bukan `prefix` |
+| device | name | Nilai: "Laptop" atau "Personal Computer" |
 | asset | asset_type | UUID FK ke device |
 | asset | kondisi_aset | int8 FK ke asset_condition |
+| asset | asset_code | UNIQUE constraint |
 | employees | employee_type_id | FK ke employee_types, bukan jenis_pegawai |
 | employee_details | employee_number | Hanya untuk tipe Karyawan |
+| employee_details | instansi, nomor_ktp | Hanya untuk tipe Non-Karyawan |
 | security_checklist_items | category | Nilai: LOW / MEDIUM / HIGH |
 | security_checklist_items | item_text | Prefix [LAPTOP] dan [PC] difilter di frontend |
 | asset_security_checklist | is_checked | Boolean, default false |
+| asset_shift_users | shift_id | FK ke shifts.id |

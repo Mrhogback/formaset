@@ -25,7 +25,7 @@ type FormValues = z.infer<typeof formSchema>;
 
 type Asset = {
   device_id: string;
-  asset_code?: string; // untuk preview di review
+  asset_code?: string;
   asset_name: string;
   condition_id: string;
   status_id: string;
@@ -38,6 +38,8 @@ type Asset = {
   besar_storage?: string;
   grafis_card?: string;
   softwares?: { name: string }[];
+  // ➕ MULTI-SHIFT: field untuk menyimpan data shift users
+  shiftUsers?: { shift_id: string; shift_name: string; employee_name: string }[];
 };
 
 type ChecklistCategory = "LOW" | "MEDIUM" | "HIGH";
@@ -58,6 +60,13 @@ type Notification = {
   message: string;
 };
 
+// ➕ MULTI-SHIFT: Type untuk shift selection
+type ShiftSelection = {
+  shift_id: string;
+  shift_name: string;
+  employee_name: string;
+};
+
 export default function FormPage() {
   const [step, setStep] = useState(1);
   const [buildings, setBuildings] = useState<SelectOption[]>([]);
@@ -67,6 +76,10 @@ export default function FormPage() {
   const [conditions, setConditions] = useState<SelectOption[]>([]);
   const [statuses, setStatuses] = useState<SelectOption[]>([]);
   const [employeeTypes, setEmployeeTypes] = useState<SelectOption[]>([]);
+  
+  // ➕ MULTI-SHIFT: state untuk shifts & employees
+  const [shifts, setShifts] = useState<SelectOption[]>([]);
+  
   const [assets, setAssets] = useState<Asset[]>([]);
   const [currentAsset, setCurrentAsset] = useState<Partial<Asset>>({});
   const [currentSoftwares, setCurrentSoftwares] = useState([{ name: "" }]);
@@ -78,9 +91,12 @@ export default function FormPage() {
   const [notification, setNotification] = useState<Notification | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  
+  // ➕ MULTI-SHIFT: state untuk multi-shift toggle & selections
+  const [isMultiShift, setIsMultiShift] = useState(false);
+  const [currentShiftSelections, setCurrentShiftSelections] = useState<Record<string, string>>({});
+  
   const router = useRouter();
-
-  // Prevent duplicate fetches
   const hasFetchedRef = useRef(false);
 
   useEffect(() => {
@@ -140,6 +156,7 @@ export default function FormPage() {
   const selectedEmployeeTypeLabel = employeeTypes.find((type) => type.id === selectedEmployeeTypeId)?.label ?? "";
   const isKaryawan = selectedEmployeeTypeLabel === "Karyawan";
   const isNonKaryawan = selectedEmployeeTypeLabel === "Non-Karyawan";
+  
   const currentDeviceLabel = useMemo(
     () => devices.find((d) => d.id === currentAsset.device_id)?.label,
     [devices, currentAsset.device_id]
@@ -259,6 +276,33 @@ export default function FormPage() {
     );
   };
 
+  // ➕ MULTI-SHIFT: Helper functions
+  const updateShiftEmployee = (shiftId: string, employeeId: string) => {
+    setCurrentShiftSelections((prev) => ({
+      ...prev,
+      [shiftId]: employeeId,
+    }));
+  };
+
+  // Hapus key sepenuhnya agar tombol "+ Tambah" muncul kembali
+  const clearShiftSelection = (shiftId: string) => {
+    setCurrentShiftSelections((prev) => {
+      const next = { ...prev };
+      delete next[shiftId]; // Hapus key, bukan set ke ""
+      return next;
+    });
+  };
+
+  const getValidShiftSelections = (): ShiftSelection[] => {
+    return shifts
+      .filter((shift) => !!currentShiftSelections[shift.id]) // Ensure employee is selected for the shift
+      .map((shift) => ({
+        shift_id: shift.id,
+        shift_name: shift.label,
+        employee_name: currentShiftSelections[shift.id]!,
+      }));
+  };
+
   const addAssetToList = () => {
     if (
       !currentAsset.device_id ||
@@ -266,6 +310,7 @@ export default function FormPage() {
       !currentAsset.condition_id ||
       !currentAsset.status_id ||
       !currentAsset.photo
+      
     ) {
       setNotification({ type: "error", message: "Semua field asset wajib diisi." });
       return;
@@ -286,9 +331,16 @@ export default function FormPage() {
       }
     }
 
+    // ✅ 3. VALIDASI MULTI-SHIFT: Jika aktif, wajib isi minimal 1 shift
+    const validShifts = isMultiShift ? getValidShiftSelections() : [];
+    if (isMultiShift && validShifts.length === 0) {
+      setNotification({ type: "error", message: "Aktifkan multi-shift? Isi minimal 1 nama pegawai per shift." });
+      return;
+    }
+
     const newAsset: Asset = {
       device_id: currentAsset.device_id,
-      asset_code: currentAssetCode, // untuk preview di review
+      asset_code: currentAssetCode,
       asset_name: currentAsset.asset_name,
       condition_id: currentAsset.condition_id,
       status_id: currentAsset.status_id,
@@ -301,12 +353,18 @@ export default function FormPage() {
       besar_storage: currentAsset.besar_storage,
       grafis_card: currentAsset.grafis_card,
       softwares: currentSoftwares.filter((s) => s.name.trim()),
+      // ➕ MULTI-SHIFT: tambahkan shiftUsers
+      shiftUsers: validShifts.length > 0 ? validShifts : undefined,
     };
 
     setAssets((prev) => [...prev, newAsset]);
+    
+    // Reset form asset + shift
     setCurrentAsset({});
     setCurrentSoftwares([{ name: "" }]);
     setCurrentAssetCode("");
+    setIsMultiShift(false);
+    setCurrentShiftSelections({});
     setNotification(null);
   };
 
@@ -346,7 +404,6 @@ export default function FormPage() {
   }, [selectedBuildingId, setValue]);
 
   useEffect(() => {
-    // Prevent duplicate fetches
     if (hasFetchedRef.current) {
       console.log("🚫 Skipping duplicate fetch");
       return;
@@ -354,7 +411,7 @@ export default function FormPage() {
 
     const loadOptions = async () => {
       console.log("🔄 Starting to load dropdown options...");
-      hasFetchedRef.current = true; // Mark as fetched
+      hasFetchedRef.current = true;
       setFetchError(null);
 
       try {
@@ -379,7 +436,7 @@ export default function FormPage() {
         if (problem?.error) {
           console.error("❌ Error fetching data:", problem.error);
           setFetchError(problem.error.message);
-          hasFetchedRef.current = false; // Allow retry on error
+          hasFetchedRef.current = false;
           return;
         }
 
@@ -409,11 +466,40 @@ export default function FormPage() {
       } catch (err) {
         console.error("💥 Unexpected error during data loading:", err);
         setFetchError(formatErrorDetails(err));
-        hasFetchedRef.current = false; // Allow retry on error
+        hasFetchedRef.current = false;
       }
     };
 
     loadOptions();
+  }, []);
+
+  // ➕ MULTI-SHIFT: Fetch shifts dan employees (digabung agar efisien)
+  useEffect(() => {
+      const loadShifts = async () => {
+        console.log("🔄 [Multi-Shift] Fetching shifts...");
+        try {
+          const { data, error } = await supabase
+            .from("shifts")
+            .select("id, shift_name");
+
+          if (error) {
+            console.error("❌ [Multi-Shift] Shifts Error:", error);
+            setShifts([]);
+            return;
+          }
+
+          const mapped = (data ?? []).map((row) => ({
+            id: String(row.id),
+            label: row.shift_name,
+          }));
+          
+          console.log("✅ [Multi-Shift] Mapped Shifts:", mapped);
+          setShifts(mapped);
+        } catch (err) {
+          console.error("💥 [Multi-Shift] Unexpected Error:", err);
+        }
+      };
+    loadShifts();
   }, []);
 
   useEffect(() => {
@@ -434,7 +520,7 @@ export default function FormPage() {
         console.error("💥 Unexpected error fetching employee_types:", err);
         setFetchError(formatErrorDetails(err));
       }
-    };
+    }
 
     loadEmployeeTypes();
   }, []);
@@ -448,7 +534,6 @@ export default function FormPage() {
 
         if (error) {
           console.error("❌ Error fetching security checklist items:", error);
-          // If table doesn't exist, set empty array and continue
           setChecklistItems([]);
           return;
         }
@@ -460,7 +545,6 @@ export default function FormPage() {
         );
       } catch (err) {
         console.error("💥 Unexpected error fetching security checklist items:", err);
-        // Set empty array on error to prevent crashes
         setChecklistItems([]);
       }
     };
@@ -626,7 +710,6 @@ export default function FormPage() {
         const publicUrlResponse = supabase.storage.from("asset_photo").getPublicUrl(filePath);
         const photo_url = publicUrlResponse.data.publicUrl;
 
-        // Panggil RPC insert_asset_with_code
         const { data: asset_id, error: rpcError } = await supabase.rpc("insert_asset_with_code", {
           p_employee_id: employee_id,
           p_device_id: asset.device_id,
@@ -694,12 +777,66 @@ export default function FormPage() {
           try {
             const checklistInsert = await supabase.from("asset_security_checklist").insert(checklistRows);
             if (checklistInsert.error) {
-              console.warn("⚠️ Could not save checklist data (table may not exist):", checklistInsert.error);
-              // Continue with submission even if checklist save fails
+              console.warn("⚠️ Could not save checklist data:", checklistInsert.error);
             }
           } catch (err) {
             console.warn("⚠️ Checklist save failed:", err);
-            // Continue with submission
+          }
+        }
+
+        // ➕ MULTI-SHIFT: Insert ke asset_shift_users jika ada shift users
+        if (asset.shiftUsers?.length) {
+          for (const su of asset.shiftUsers) {
+            const empName = su.employee_name.trim();
+            if (!empName) continue;
+
+            let targetEmployeeId: string | null = null;
+
+            // 1. Cek apakah pegawai sudah terdaftar
+            const { data: existingEmp } = await supabase
+              .from("employees")
+              .select("id")
+              .eq("nama_pegawai", empName)
+              .maybeSingle();
+
+            if (existingEmp) {
+              targetEmployeeId = existingEmp.id;
+            } else {
+              // 2. Buat pegawai baru (Building & Lokasi disamakan dengan user utama)
+              const { data: newEmp, error: empErr } = await supabase
+                .from("employees")
+                .insert([
+                  {
+                    nama_pegawai: empName,
+                    employee_type_id: parseInt(values.employee_type_id, 10),
+                    position: parseInt(values.position, 10),
+                    building_id: parseInt(values.building_id, 10),
+                    lokasi: parseInt(values.lokasi, 10),
+                  },
+                ])
+                .select("id")
+                .single();
+
+              if (empErr || !newEmp?.id) {
+                console.warn(`⚠️ Gagal membuat pegawai "${empName}":`, empErr);
+                continue;
+              }
+              targetEmployeeId = newEmp.id;
+
+              // Catatan: Jika tabel employee_details punya constraint NOT NULL, 
+              // Anda bisa tambahkan insert default di sini. Untuk sekarang dilewati agar tetap ringan.
+            }
+
+            // 3. Simpan ke asset_shift_users
+            const { error: shiftErr } = await supabase.from("asset_shift_users").insert({
+              asset_id,
+              employee_id: targetEmployeeId,
+              shift_id: parseInt(su.shift_id, 10),
+            });
+
+            if (shiftErr) {
+              console.warn(`⚠️ Gagal menyimpan shift user "${empName}":`, shiftErr);
+            }
           }
         }
       }
@@ -729,6 +866,11 @@ export default function FormPage() {
           besar_storage: asset.besar_storage,
           grafis_card: asset.grafis_card,
           softwares: asset.softwares?.map((soft) => soft.name).filter(Boolean),
+          // ➕ MULTI-SHIFT: tambahkan shift info di review
+          shiftUsers: asset.shiftUsers?.map((su) => ({ // 'su' is now of type ShiftSelection
+            shift_name: su.shift_name,
+            employee_name: su.employee_name,
+          })),
           checklist_items: getChecklistItemsForAsset(asset).map((item) => ({
             checklist_item_id: item.id,
             item_text: item.item_text,
@@ -759,7 +901,7 @@ export default function FormPage() {
         <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-semibold">Kelola Asetmu</h1>
-            <div >
+            <div>
               <p className={`mt-2 ${isDark ? "text-slate-200" : "text-slate-800"}`}>
                 Masukkan informasi secara bertahap, jika ada kendala hubungi Tim IT{" "}
                 <a href="https://api.whatsapp.com/send/?phone=62895422388034&text&type=phone_number&app_absent=0" className="text-blue-300 hover:underline">
@@ -767,7 +909,6 @@ export default function FormPage() {
                 </a>
               </p>
             </div>
-            
           </div>
           <button
             type="button"
@@ -780,7 +921,6 @@ export default function FormPage() {
             }`}
           >
             <span className="text-xl">{isDark ? "☀️" : "🌙"}</span>
-        
           </button>
         </header>
 
@@ -835,9 +975,7 @@ export default function FormPage() {
             <section className="space-y-6">
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
-                  
-                    Nama Pegawai
-                
+                  Nama Pegawai
                   <span className="mt-1 block text-xs text-slate-500 italic">
                     Masukkan nama lengkap tanpa singkatan
                   </span>
@@ -1099,7 +1237,7 @@ export default function FormPage() {
                     {currentSoftwares.map((software, index) => (
                       <div key={index} className="grid gap-4 lg:grid-cols-[1fr_auto]">
                         <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-700">Nama Software {index + 1} +  Version</label>
+                          <label className="mb-2 block text-sm font-medium text-slate-700">Nama Software {index + 1} + Version</label>
                           <input
                             value={software.name}
                             onChange={(e) => updateSoftware(index, e.target.value)}
@@ -1119,6 +1257,108 @@ export default function FormPage() {
                   </div>
                 </>
               )}
+
+              {/* ➕ MULTI-SHIFT: Section Multi-Shift User */}
+              <div className={`rounded-3xl border p-5 ${panelStyle}`}>
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={isMultiShift}
+                    onChange={(e) => {
+                      setIsMultiShift(e.target.checked);
+                      if (!e.target.checked) {
+                        setCurrentShiftSelections({});
+                      }
+                    }}
+                    className={`mt-1 h-4 w-4 rounded border-slate-300 focus:ring-slate-500 ${
+                      isDark ? "text-slate-300" : "text-slate-900"
+                    }`}
+                  />
+                  <span className={`text-sm font-medium ${isDark ? "text-slate-200" : "text-slate-700"}`}>
+                    Perangkat ini digunakan lebih dari 1 orang (multi-shift)
+                  </span>
+                </label>
+
+                {isMultiShift && (
+                  <div className="mt-4 space-y-4">
+                    <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                      Pilih shift dan tentukan pegawai yang menggunakan perangkat pada shift tersebut.
+                    </p>
+
+                    {shifts.length === 0 ? (
+                      <p className={`text-sm ${isDark ? "text-amber-400" : "text-amber-600"}`}>
+                        ⚠️ Data shift tidak tersedia. Hubungi admin untuk menambahkan data shift.
+                      </p>
+                    ) : (
+                      <div className="space-y-3">
+                        {shifts.map((shift) => {
+                          const isShiftActive = shift.id in currentShiftSelections;
+                          const selectedEmployeeId = currentShiftSelections[shift.id] || "";
+                          const employeeName = currentShiftSelections[shift.id] || "";
+
+                          return (
+                            <div
+                              key={shift.id}
+                              className={`rounded-2xl border p-4 ${
+                                isDark ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-slate-50"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <span className={`font-medium ${isDark ? "text-slate-200" : "text-slate-700"}`}>
+                                  🔄 {shift.label}
+                                </span>
+                                {isShiftActive && selectedEmployeeId && (
+                                  <button
+                                    type="button"
+                                    onClick={() => clearShiftSelection(shift.id)}
+                                    className="cursor-pointer text-xs text-rose-600 hover:text-rose-700 font-medium"
+                                  >
+                                    Hapus
+                                  </button>
+                                )}
+                              </div>
+
+                              {!isShiftActive ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setCurrentShiftSelections(prev => ({ ...prev, [shift.id]: "" }))}
+                                  className={`cursor-pointer w-full rounded-xl border-2 border-dashed px-4 py-3 text-sm transition ${
+                                    isDark
+                                      ? "border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300"
+                                      : "border-slate-300 text-slate-500 hover:border-slate-400 hover:text-slate-600"
+                                  }`}
+                                >
+                                  + Tambah pegawai untuk shift {shift.label}
+                                </button>
+                              ) : (
+                                <div className="space-y-3">
+                                  <div>
+                                    <label className="mb-1 block text-xs font-medium text-slate-500">
+                                      Name Pegawai
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={employeeName}
+                                      onChange={(e) => setCurrentShiftSelections((prev) => ({ ...prev, [shift.id]: e.target.value }))}
+                                      placeholder="Contoh: Budi Santoso"
+                                      className={`w-full rounded-xl border px-3 py-2 text-sm outline-none transition focus:border-slate-900 ${fieldStyle}`}
+                                    />
+                                  </div>
+                                  {employeeName && (
+                                    <p className="text-xs text-emerald-600">
+                                      ✅ Shift {shift.label} → {employeeName} <span className="text-slate-400">(Building & Ruangan disamakan dengan Anda)</span>
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="flex justify-end pt-2">
                 <button
@@ -1142,11 +1382,17 @@ export default function FormPage() {
                           <div>
                             <p className="font-semibold">{asset.asset_code}</p>
                             <p className="text-sm text-slate-600">{asset.asset_name}</p>
+                            {/* ➕ MULTI-SHIFT: Tampilkan info shift di list preview */}
+                            {asset.shiftUsers && asset.shiftUsers.length > 0 && (
+                              <p className="text-xs text-blue-600 mt-1">
+                                🔄 Multi-shift: {asset.shiftUsers.length} shift
+                              </p>
+                            )}
                           </div>
                           <button
                             type="button"
                             onClick={() => removeAsset(index)}
-                            className="rounded-2xl bg-rose-100 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-200"
+                            className="custom-pointer rounded-2xl bg-rose-100 px-3 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-200"
                           >
                             Hapus
                           </button>
@@ -1293,6 +1539,19 @@ export default function FormPage() {
                             )}
                           </div>
                         )}
+                        {/* ➕ MULTI-SHIFT: Tampilkan shift users di review */}
+                        {asset.shiftUsers?.length ? (
+                          <div className="mt-2 pl-4 border-l-2 border-blue-300">
+                            <p className="text-sm font-medium text-blue-700">🔄 Multi-Shift Users:</p>
+                            <ul className="mt-1 space-y-1">
+                              {asset.shiftUsers.map((su, idx) => (
+                                <li key={idx} className="text-xs text-slate-600">
+                                  • {su.shift_name}: {su.employee_name}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ): null}
                       </div>
                     </div>
                   ))}
