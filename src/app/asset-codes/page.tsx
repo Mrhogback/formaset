@@ -105,7 +105,7 @@ export default function AssetCodesPage() {
                 ))}
               </div>
             </section>
-
+            <h2 className="text-lg font-semibold">Jangan lupa di print atau di tulis, lalu ditempelkan pada perangkat aset</h2>
             <button
               type="button"
               onClick={downloadAssetCodes}

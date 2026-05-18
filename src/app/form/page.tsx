@@ -77,9 +77,6 @@ export default function FormPage() {
   const [statuses, setStatuses] = useState<SelectOption[]>([]);
   const [employeeTypes, setEmployeeTypes] = useState<SelectOption[]>([]);
   
-  // ➕ MULTI-SHIFT: state untuk shifts & employees
-  const [shifts, setShifts] = useState<SelectOption[]>([]);
-  
   const [assets, setAssets] = useState<Asset[]>([]);
   const [currentAsset, setCurrentAsset] = useState<Partial<Asset>>({});
   const [currentSoftwares, setCurrentSoftwares] = useState([{ name: "" }]);
@@ -91,10 +88,17 @@ export default function FormPage() {
   const [notification, setNotification] = useState<Notification | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
-  
+
+  // ➕ MULTI-SHIFT: state untuk shifts & employees
+  const [shifts, setShifts] = useState<SelectOption[]>([]);
+
+  // State untuk daftar employee existing
+  const [existingEmployees, setExistingEmployees] = useState<SelectOption[]>([]);
+  const [openPickerId, setOpenPickerId] = useState<string | null>(null);
+
   // ➕ MULTI-SHIFT: state untuk multi-shift toggle & selections
   const [isMultiShift, setIsMultiShift] = useState(false);
-  const [currentShiftSelections, setCurrentShiftSelections] = useState<Record<string, string>>({});
+  const [currentShiftSelections, setCurrentShiftSelections] = useState<Record<string, string[]>>({});
   
   const router = useRouter();
   const hasFetchedRef = useRef(false);
@@ -276,13 +280,36 @@ export default function FormPage() {
     );
   };
 
-  // ➕ MULTI-SHIFT: Helper functions
-  const updateShiftEmployee = (shiftId: string, employeeId: string) => {
+    // ➕ Tambah slot employee baru (string kosong) ke shift tertentu
+  const addShiftEmployee = (shiftId: string) => {
     setCurrentShiftSelections((prev) => ({
       ...prev,
-      [shiftId]: employeeId,
+      [shiftId]: [...(prev[shiftId] ?? []), ""],
     }));
   };
+
+    // ➕ Hapus employee berdasarkan index di shift tertentu
+  const removeShiftEmployee = (shiftId: string, index: number) => {
+    setCurrentShiftSelections((prev) => {
+      const updated = (prev[shiftId] ?? []).filter((_, i) => i !== index);
+      if (updated.length === 0) {
+        const { [shiftId]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [shiftId]: updated };
+    });
+  };
+
+
+  // ➕ MULTI-SHIFT: Helper functions
+  const updateShiftEmployeeName = (shiftId: string, index: number, name: string) => {
+    setCurrentShiftSelections((prev) => {
+      const updated = [...(prev[shiftId] ?? [])];
+      updated[index] = name;
+      return { ...prev, [shiftId]: updated };
+    });
+  };
+
 
   // Hapus key sepenuhnya agar tombol "+ Tambah" muncul kembali
   const clearShiftSelection = (shiftId: string) => {
@@ -293,14 +320,17 @@ export default function FormPage() {
     });
   };
 
+  // ➕ Get valid shift selections untuk submit (hanya yang tidak kosong)
   const getValidShiftSelections = (): ShiftSelection[] => {
-    return shifts
-      .filter((shift) => !!currentShiftSelections[shift.id]) // Ensure employee is selected for the shift
-      .map((shift) => ({
-        shift_id: shift.id,
-        shift_name: shift.label,
-        employee_name: currentShiftSelections[shift.id]!,
-      }));
+    return shifts.flatMap((shift) =>
+      (currentShiftSelections[shift.id] ?? [])
+        .filter((name) => name.trim())
+        .map((name) => ({
+          shift_id: shift.id,
+          shift_name: shift.label,
+          employee_name: name,
+        }))
+    );
   };
 
   const addAssetToList = () => {
@@ -488,6 +518,13 @@ export default function FormPage() {
             return;
           }
 
+          setShifts(
+            (data ?? []).map((row) => ({
+              id: String(row.id),
+              label: row.shift_name,
+            }))
+          );
+
           const mapped = (data ?? []).map((row) => ({
             id: String(row.id),
             label: row.shift_name,
@@ -500,6 +537,24 @@ export default function FormPage() {
         }
       };
     loadShifts();
+  }, []);
+
+  // Fetch di useEffect (gabungan dengan shifts)
+  useEffect(() => {
+    const loadData = async () => {
+      const [shiftsRes, empRes] = await Promise.all([
+        supabase.from("shifts").select("id, shift_name"),
+        supabase.from("employees").select("id, nama_pegawai"),
+      ]);
+      
+      if (!shiftsRes.error) {
+        setShifts(shiftsRes.data?.map(r => ({ id: String(r.id), label: r.shift_name })) ?? []);
+      }
+      if (!empRes.error) {
+        setExistingEmployees(empRes.data?.map(r => ({ id: r.id, label: r.nama_pegawai })) ?? []);
+      }
+    };
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -627,6 +682,12 @@ export default function FormPage() {
   };
 
   const assetStepCount = 4;
+
+  // Set nama employee dari picker (bisa per shift+index)
+  const selectEmployeeFromList = (shiftId: string, index: number, employeeName: string) => {
+    updateShiftEmployeeName(shiftId, index, employeeName);
+    // Optional: tutup dropdown picker setelah pilih
+  };
 
   const onSubmit = async (values: FormValues) => {
     if (assets.length === 0) {
@@ -977,7 +1038,7 @@ export default function FormPage() {
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Nama Pegawai
                   <span className="mt-1 block text-xs text-slate-500 italic">
-                    Masukkan nama lengkap tanpa singkatan
+                    Masukkan nama lengkap yang ada di Aplikasi Talenta untuk karyawan, untuk non-karyawan masukan nama lengkap
                   </span>
                 </label>
                 <input
@@ -1293,8 +1354,7 @@ export default function FormPage() {
                       <div className="space-y-3">
                         {shifts.map((shift) => {
                           const isShiftActive = shift.id in currentShiftSelections;
-                          const selectedEmployeeId = currentShiftSelections[shift.id] || "";
-                          const employeeName = currentShiftSelections[shift.id] || "";
+                          const selectedEmployeeNames = currentShiftSelections[shift.id] ?? [];
 
                           return (
                             <div
@@ -1303,25 +1363,96 @@ export default function FormPage() {
                                 isDark ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-slate-50"
                               }`}
                             >
+                              {/* Header Shift */}
                               <div className="flex items-center justify-between mb-3">
-                                <span className={`font-medium ${isDark ? "text-slate-200" : "text-slate-700"}`}>
-                                  🔄 {shift.label}
-                                </span>
-                                {isShiftActive && selectedEmployeeId && (
-                                  <button
-                                    type="button"
-                                    onClick={() => clearShiftSelection(shift.id)}
-                                    className="cursor-pointer text-xs text-rose-600 hover:text-rose-700 font-medium"
-                                  >
-                                    Hapus
-                                  </button>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg">🔄</span>
+                                  <span className={`font-semibold ${isDark ? "text-slate-200" : "text-slate-700"}`}>
+                                    {shift.label}
+                                  </span>
+                                </div>
+                                {selectedEmployeeNames.length > 0 && (
+                                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-medium">
+                                    {selectedEmployeeNames.length} pegawai
+                                  </span>
                                 )}
                               </div>
+
+                              {/* List Pegawai */}
+                              {selectedEmployeeNames.length > 0 && (
+                                <div className="space-y-2 mb-3">
+                                  {selectedEmployeeNames.map((empName, idx) => {
+                                    const pickerKey = `${shift.id}-${idx}`;
+                                    const isThisPickerOpen = openPickerId === pickerKey;
+                                    return (
+                                      <div
+                                        key={`${shift.id}-${idx}`}
+                                        className={`flex items-center gap-2 rounded-xl px-3 py-2 ${
+                                          isDark ? "bg-slate-700" : "bg-white border border-slate-200"
+                                        }`}
+                                      >
+                                        <input
+                                          type="text"
+                                          value={empName}
+                                          onChange={(e) => updateShiftEmployeeName(shift.id, idx, e.target.value)}
+                                          placeholder="Ketik nama atau pilih dari daftar..."
+                                          className={`flex-1 rounded-lg border px-2 py-1 text-sm outline-none focus:border-slate-900 ${fieldStyle}`}
+                                        />
+
+                                        <div className="relative">
+                                          <button
+                                            type="button"
+                                            onClick={() => setOpenPickerId(isThisPickerOpen ? null : pickerKey)}
+                                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition"
+                                            title="Pilih dari daftar pegawai"
+                                          >
+                                            🔍
+                                          </button>
+                                          {isThisPickerOpen && (
+                                            <div className={`absolute z-10 mt-1 w-48 rounded-xl border shadow-lg ${isDark ? "bg-slate-800 border-slate-700" : "bg-white border-slate-200"}`}>
+                                              <div className="p-2 max-h-48 overflow-y-auto">
+                                                {existingEmployees.length === 0 ? (
+                                                  <p className="text-xs text-slate-500 px-2 py-1">Belum ada data pegawai</p>
+                                                ) : (
+                                                  existingEmployees.map((emp) => (
+                                                    <button
+                                                      key={emp.id}
+                                                      type="button"
+                                                      onClick={() => {
+                                                        updateShiftEmployeeName(shift.id, idx, emp.label);
+                                                        setOpenPickerId(null);
+                                                      }}
+                                                      className={`w-full text-left px-2 py-1.5 rounded-lg text-sm transition ${
+                                                        isDark ? "hover:bg-slate-700" : "hover:bg-slate-100"
+                                                      }`}
+                                                    >
+                                                      {emp.label}
+                                                    </button>
+                                                  ))
+                                                )}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        <button
+                                          type="button"
+                                          onClick={() => removeShiftEmployee(shift.id, idx)}
+                                          className="p-2 rounded-lg text-rose-600 hover:bg-rose-50 transition"
+                                          title="Hapus baris ini"
+                                        >
+                                          ✕
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
 
                               {!isShiftActive ? (
                                 <button
                                   type="button"
-                                  onClick={() => setCurrentShiftSelections(prev => ({ ...prev, [shift.id]: "" }))}
+                                  onClick={() => setCurrentShiftSelections(prev => ({ ...prev, [shift.id]: [""] }))}
                                   className={`cursor-pointer w-full rounded-xl border-2 border-dashed px-4 py-3 text-sm transition ${
                                     isDark
                                       ? "border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300"
@@ -1331,25 +1462,17 @@ export default function FormPage() {
                                   + Tambah pegawai untuk shift {shift.label}
                                 </button>
                               ) : (
-                                <div className="space-y-3">
-                                  <div>
-                                    <label className="mb-1 block text-xs font-medium text-slate-500">
-                                      Name Pegawai
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={employeeName}
-                                      onChange={(e) => setCurrentShiftSelections((prev) => ({ ...prev, [shift.id]: e.target.value }))}
-                                      placeholder="Contoh: Budi Santoso"
-                                      className={`w-full rounded-xl border px-3 py-2 text-sm outline-none transition focus:border-slate-900 ${fieldStyle}`}
-                                    />
-                                  </div>
-                                  {employeeName && (
-                                    <p className="text-xs text-emerald-600">
-                                      ✅ Shift {shift.label} → {employeeName} <span className="text-slate-400">(Building & Ruangan disamakan dengan Anda)</span>
-                                    </p>
-                                  )}
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => addShiftEmployee(shift.id)}
+                                  className={`cursor-pointer w-full rounded-xl border-2 border-dashed px-4 py-3 text-sm transition ${
+                                    isDark
+                                      ? "border-slate-600 text-slate-400 hover:border-slate-500 hover:text-slate-300"
+                                      : "border-slate-300 text-slate-500 hover:border-slate-400 hover:text-slate-600"
+                                  }`}
+                                >
+                                  + Tambah pegawai lain untuk shift {shift.label}
+                                </button>
                               )}
                             </div>
                           );
