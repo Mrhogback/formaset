@@ -1510,7 +1510,7 @@ export default function FormPage() {
                     </>
                   )}
                   <p><strong>Position:</strong> {positions.find(p => p.id === getValues("position"))?.label}</p>
-                  <p><strong>Direktorat</strong> {buildings.find(b => b.id === getValues("building_id"))?.label}</p>
+                  <p><strong>Gedung:</strong> {buildings.find(b => b.id === getValues("building_id"))?.label}</p>
                   <p><strong>Lokasi:</strong> {locations.find(l => l.id === getValues("lokasi"))?.label}</p>
                 </div>
               </div>
