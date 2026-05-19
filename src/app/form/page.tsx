@@ -1003,8 +1003,8 @@ export default function FormPage() {
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Nama Pegawai
-                  <span className="mt-1 block text-xs text-slate-500 italic">
-                    Masukkan nama lengkap yang ada di Aplikasi Talenta untuk karyawan, untuk non-karyawan masukan namalengkap
+                  <span className="mt-1 block text-md text-slate-500 italic">
+                    Masukkan nama lengkap yang ada di Aplikasi Talenta untuk karyawan, untuk non-karyawan masukan nama lengkap
                   </span>
                 </label>
                 <input
