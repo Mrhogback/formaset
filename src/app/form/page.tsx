@@ -847,59 +847,25 @@ export default function FormPage() {
 
         // ➕ MULTI-SHIFT: Insert ke asset_shift_users jika ada shift users
         if (asset.shiftUsers?.length) {
-          for (const su of asset.shiftUsers) {
-            const empName = su.employee_name.trim();
-            if (!empName) continue;
+        const shiftRows = asset.shiftUsers
+          .filter((su) => su.employee_name.trim())
+          .map((su) => ({
+            asset_id,
+            shift_id: parseInt(su.shift_id, 10),
+            // nama_manual: su.employee_name.trim(),
+            employee_id: null,
+          }));
 
-            let targetEmployeeId: string | null = null;
+        if (shiftRows.length > 0) {
+          const { error: shiftErr } = await supabase
+            .from("asset_shift_users")
+            .insert(shiftRows);
 
-            // 1. Cek apakah pegawai sudah terdaftar
-            const { data: existingEmp } = await supabase
-              .from("employees")
-              .select("id")
-              .eq("nama_pegawai", empName)
-              .maybeSingle();
-
-            if (existingEmp) {
-              targetEmployeeId = existingEmp.id;
-            } else {
-              // 2. Buat pegawai baru (Building & Lokasi disamakan dengan user utama)
-              const { data: newEmp, error: empErr } = await supabase
-                .from("employees")
-                .insert([
-                  {
-                    nama_pegawai: empName,
-                    employee_type_id: parseInt(values.employee_type_id, 10),
-                    position: parseInt(values.position, 10),
-                    building_id: parseInt(values.building_id, 10),
-                    lokasi: parseInt(values.lokasi, 10),
-                  },
-                ])
-                .select("id")
-                .single();
-
-              if (empErr || !newEmp?.id) {
-                console.warn(`⚠️ Gagal membuat pegawai "${empName}":`, empErr);
-                continue;
-              }
-              targetEmployeeId = newEmp.id;
-
-              // Catatan: Jika tabel employee_details punya constraint NOT NULL, 
-              // Anda bisa tambahkan insert default di sini. Untuk sekarang dilewati agar tetap ringan.
-            }
-
-            // 3. Simpan ke asset_shift_users
-            const { error: shiftErr } = await supabase.from("asset_shift_users").insert({
-              asset_id,
-              employee_id: targetEmployeeId,
-              shift_id: parseInt(su.shift_id, 10),
-            });
-
-            if (shiftErr) {
-              console.warn(`⚠️ Gagal menyimpan shift user "${empName}":`, shiftErr);
-            }
+          if (shiftErr) {
+            console.warn("⚠️ Gagal menyimpan shift users:", shiftErr);
           }
         }
+      }
       }
 
       const review = {
@@ -1038,7 +1004,7 @@ export default function FormPage() {
                 <label className="mb-2 block text-sm font-medium text-slate-700">
                   Nama Pegawai
                   <span className="mt-1 block text-xs text-slate-500 italic">
-                    Masukkan nama lengkap yang ada di Aplikasi Talenta untuk karyawan, untuk non-karyawan masukan nama lengkap
+                    Masukkan nama lengkap yang ada di Aplikasi Talenta untuk karyawan, untuk non-karyawan masukan namalengkap
                   </span>
                 </label>
                 <input

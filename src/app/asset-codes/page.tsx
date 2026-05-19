@@ -54,7 +54,10 @@ export default function AssetCodesPage() {
           <div>
             <h1 className="text-3xl font-semibold">Daftar Kode Aset</h1>
             <p className={`mt-2 ${labelStyle}`}>
-              Lihat asset code final dan ringkasan data submit Anda.
+              Lihat asset code final dan ringkasan data submit Anda. 
+            </p>
+            <p className={`mt-2 ${labelStyle}`}>
+              Serta jangan lupa untuk menempelkan kode aset anda pada perangkat!
             </p>
           </div>
 
@@ -105,11 +108,11 @@ export default function AssetCodesPage() {
                 ))}
               </div>
             </section>
-            <h2 className="text-lg font-semibold">Jangan lupa di print atau di tulis, lalu ditempelkan pada perangkat aset</h2>
+           
             <button
               type="button"
               onClick={downloadAssetCodes}
-              className="mb-8 inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              className="cursor-pointer mb-8 inline-flex items-center justify-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
             >
               Download Kode Aset
             </button>
