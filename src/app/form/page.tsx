@@ -1503,7 +1503,12 @@ export default function FormPage() {
 
           {step === 3 && (
             <section className="space-y-6">
-              <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Keamanan Perangkat</h2>
+              <div className="flex space-0 items-center text-center gap-4">
+                <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Keamanan Perangkat</h2>
+                <p className={`text-sm ${isDark ? "text-slate-400" : "text-slate-500"}`}>
+                  ( Apa saja upaya yang sudah dilakukan untuk mengamankan perangkat aset )
+                </p>
+              </div>
 
               {assets.length === 0 ? (
                 <p className={isDark ? "text-slate-400" : "text-slate-500"}>
