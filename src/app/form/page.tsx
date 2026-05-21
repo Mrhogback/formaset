@@ -112,6 +112,7 @@ export default function FormPage() {
   // ➕ MULTI-SHIFT: state untuk multi-shift toggle & selections
   const [isMultiShift, setIsMultiShift] = useState(false);
   const [currentShiftSelections, setCurrentShiftSelections] = useState<Record<string, string[]>>({});
+  const [skipSpesifikasi, setSkipSpesifikasi] = useState(false);
   
   const router = useRouter();
   const hasFetchedRef = useRef(false);
@@ -132,6 +133,10 @@ export default function FormPage() {
     document.documentElement.classList.toggle("light", theme === "light");
     window.localStorage.setItem("theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    setSkipSpesifikasi(false);
+  }, [currentAsset.condition_id, currentAsset.status_id]);
 
   const isDark = theme === "dark";
   const pageStyle = isDark ? "bg-slate-950 text-slate-100" : "bg-slate-50 text-slate-900";
@@ -346,6 +351,11 @@ export default function FormPage() {
     );
   };
 
+  // Cek kondisi Kurang + Tidak Digunakan
+  const isRusakTidakDigunakan =
+    currentAsset.condition_id === "3" && // id 3 = Kurang
+    currentAsset.status_id === "2";     // id 2 = Tidak Digunakan
+
   const addAssetToList = () => {
     if (
       !currentAsset.device_id ||
@@ -359,7 +369,8 @@ export default function FormPage() {
       return;
     }
 
-    if (isComputerCurrent) {
+    // Validasi spesifikasi hanya jika tidak dilewati oleh pengguna
+    if (isComputerCurrent && !skipSpesifikasi) {
       if (
         !currentAsset.operating_system ||
         !currentAsset.merk ||
@@ -381,6 +392,7 @@ export default function FormPage() {
       return;
     }
 
+    // Jika Rusak + Tidak Digunakan, set semua spesifikasi ke "NA"
     const newAsset: Asset = {
       device_id: currentAsset.device_id,
       asset_code: currentAssetCode,
@@ -388,14 +400,14 @@ export default function FormPage() {
       condition_id: currentAsset.condition_id,
       status_id: currentAsset.status_id,
       photo: currentAsset.photo as File,
-      operating_system: currentAsset.operating_system,
-      merk: currentAsset.merk,
-      processor: currentAsset.processor,
-      ram: currentAsset.ram,
-      jenis_storage: currentAsset.jenis_storage,
-      besar_storage: currentAsset.besar_storage,
-      grafis_card: currentAsset.grafis_card,
-      softwares: currentSoftwares.filter((s) => s.name.trim()),
+      operating_system: skipSpesifikasi ? "NA" : currentAsset.operating_system,
+      merk: skipSpesifikasi ? "NA" : currentAsset.merk,
+      processor: skipSpesifikasi ? "NA" : currentAsset.processor,
+      ram: skipSpesifikasi ? "NA" : currentAsset.ram,
+      jenis_storage: skipSpesifikasi ? "NA" : currentAsset.jenis_storage,
+      besar_storage: skipSpesifikasi ? "NA" : currentAsset.besar_storage,
+      grafis_card: skipSpesifikasi ? "NA" : currentAsset.grafis_card,
+      softwares: skipSpesifikasi ? [] : currentSoftwares.filter((s) => s.name.trim()),
       // ➕ MULTI-SHIFT: tambahkan shiftUsers
       shiftUsers: validShifts.length > 0 ? validShifts : undefined,
     };
@@ -408,6 +420,7 @@ export default function FormPage() {
     setCurrentAssetCode("");
     setIsMultiShift(false);
     setCurrentShiftSelections({});
+    setSkipSpesifikasi(false);
     setNotification(null);
   };
 
@@ -1491,63 +1504,101 @@ export default function FormPage() {
                 />
               </div>
 
-              {isComputerCurrent && (
-                <>
-                  <div className="grid gap-6 lg:grid-cols-2">
-                    {COMPUTER_FIELDS.map((name) => {
-                      const meta = dynamicFieldMeta[name];
-                      return (
-                        <div key={name}>
-                          <label className="mb-2 block text-sm font-medium text-slate-700">{meta.label}</label>
-                          <input
-                            value={(currentAsset[name] as string) || ""}
-                            onChange={(e) => updateCurrentAsset(name, e.target.value)}
-                            placeholder={meta.placeholder}
-                            className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
-                            type="text"
-                          />
-                          {meta.hint ? (
-                            <p className="mt-2 text-sm text-slate-500">{meta.hint}</p>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
+              {isRusakTidakDigunakan && !skipSpesifikasi && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+                  <p className="text-sm text-amber-700">
+                    ⚠️ <strong>Catatan:</strong> Jika perangkat tidak bisa menyala sama sekali 
+                    dan spesifikasi tidak dapat dicek, klik tombol di bawah untuk 
+                    melewati pengisian spesifikasi.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSkipSpesifikasi(true)}
+                    className="cursor-pointer rounded-2xl bg-amber-500 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-600 transition"
+                  >
+                    Lewati Spesifikasi
+                  </button>
+                </div>
+              )}
 
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-md font-semibold text-slate-800">Daftar Software</h3>
-                      <button
-                        type="button"
-                        onClick={appendSoftware}
-                        className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
-                      >
-                        + Tambah Software
-                      </button>
+              {isRusakTidakDigunakan && skipSpesifikasi && (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+                  <p className="text-sm text-emerald-700">
+                    ✅ Spesifikasi dilewati — semua field akan diisi NA
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSkipSpesifikasi(false)}
+                    className="rounded-2xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-600 transition"
+                  >
+                    Batalkan
+                  </button>
+                </div>
+              )}
+
+              {isComputerCurrent && (
+                <div className={`transition-all duration-300 ease-in-out overflow-hidden ${
+                  skipSpesifikasi
+                    ? "max-h-0 opacity-0"
+                    : "max-h-screen opacity-100"
+                }`}>
+                  <div className="space-y-6">
+                    <div className="grid gap-6 lg:grid-cols-2">
+                      {COMPUTER_FIELDS.map((name) => {
+                        const meta = dynamicFieldMeta[name];
+                        return (
+                          <div key={name}>
+                            <label className="mb-2 block text-sm font-medium text-slate-700">{meta.label}</label>
+                            <input
+                              value={(currentAsset[name] as string) || ""}
+                              onChange={(e) => updateCurrentAsset(name, e.target.value)}
+                              placeholder={meta.placeholder}
+                              className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
+                              type="text"
+                            />
+                            {meta.hint ? (
+                              <p className="mt-2 text-sm text-slate-500">{meta.hint}</p>
+                            ) : null}
+                          </div>
+                        );
+                      })}
                     </div>
 
-                    {currentSoftwares.map((software, index) => (
-                      <div key={index} className="grid gap-4 lg:grid-cols-[1fr_auto]">
-                        <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-700">Nama Software {index + 1} + Version</label>
-                          <input
-                            value={software.name}
-                            onChange={(e) => updateSoftware(index, e.target.value)}
-                            className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
-                            type="text"
-                          />
-                        </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-md font-semibold text-slate-800">Daftar Software</h3>
                         <button
                           type="button"
-                          onClick={() => removeSoftware(index)}
-                          className="h-fit rounded-2xl bg-rose-100 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-200"
+                          onClick={appendSoftware}
+                          className="rounded-2xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
                         >
-                          Hapus
+                          + Tambah Software
                         </button>
                       </div>
-                    ))}
+
+                      {currentSoftwares.map((software, index) => (
+                        <div key={index} className="grid gap-4 lg:grid-cols-[1fr_auto]">
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-slate-700">Nama Software {index + 1} + Version</label>
+                            <input
+                              value={software.name}
+                              onChange={(e) => updateSoftware(index, e.target.value)}
+                              className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
+                              type="text"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeSoftware(index)}
+                            className="h-fit rounded-2xl bg-rose-100 px-4 py-3 text-sm font-semibold text-rose-700 transition hover:bg-rose-200"
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </>
+                </div>
               )}
 
               {/* ➕ MULTI-SHIFT: Section Multi-Shift User */}
