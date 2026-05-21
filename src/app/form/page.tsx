@@ -76,6 +76,17 @@ export default function FormPage() {
   const [conditions, setConditions] = useState<SelectOption[]>([]);
   const [statuses, setStatuses] = useState<SelectOption[]>([]);
   const [employeeTypes, setEmployeeTypes] = useState<SelectOption[]>([]);
+  // Mode: 'input_baru' = input new employee, 'pilih_lama' = choose existing
+  const [mode, setMode] = useState<"input_baru" | "pilih_lama">("input_baru");
+  const [selectedExistingEmployeeId, setSelectedExistingEmployeeId] = useState<number | null>(null);
+  const [selectedExistingEmployee, setSelectedExistingEmployee] = useState<Record<string, any> | null>(null);
+  const [existingEmployeeAssets, setExistingEmployeeAssets] = useState<any[]>([]);
+  const [employeeSearchResults, setEmployeeSearchResults] = useState<any[]>([]);
+  const [searchingEmployees, setSearchingEmployees] = useState(false);
+  const [filterBuildingId, setFilterBuildingId] = useState<string>("");
+  const [filterRoomId, setFilterRoomId] = useState<string>("");
+  const [filterPositionId, setFilterPositionId] = useState<string>("");
+  const [filterName, setFilterName] = useState<string>("");
   
   const [assets, setAssets] = useState<Asset[]>([]);
   const [currentAsset, setCurrentAsset] = useState<Partial<Asset>>({});
@@ -88,6 +99,8 @@ export default function FormPage() {
   const [notification, setNotification] = useState<Notification | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
+  // Preview mode: allows jumping to any step to view structure without validation
+  const [previewMode, setPreviewMode] = useState(false);
 
   // ➕ MULTI-SHIFT: state untuk shifts & employees
   const [shifts, setShifts] = useState<SelectOption[]>([]);
@@ -433,6 +446,109 @@ export default function FormPage() {
     loadRooms();
   }, [selectedBuildingId, setValue]);
 
+  // Rooms for employee search (based on filterBuildingId)
+  useEffect(() => {
+    if (!filterBuildingId) {
+      return setLocations((prev) => prev); // keep existing rooms for form
+    }
+
+    const loadRoomsForFilter = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("room_locations")
+          .select("id, room_name")
+          .eq("building_id", parseInt(filterBuildingId, 10));
+
+        if (error) {
+          console.warn("Error loading rooms for filter:", error);
+          return;
+        }
+
+        // store in temporary state for search; reuse locations variable
+        setLocations((data ?? []).map((row) => ({ id: String(row.id), label: row.room_name })));
+      } catch (err) {
+        console.warn("Failed to load rooms for filter", err);
+      }
+    };
+
+    loadRoomsForFilter();
+  }, [filterBuildingId]);
+
+  const searchEmployees = async () => {
+    setSearchingEmployees(true);
+    setEmployeeSearchResults([]);
+    try {
+      let query = supabase.from("employees").select("id, nama_pegawai, position, building_id, lokasi");
+
+      if (filterBuildingId) query = query.eq("building_id", parseInt(filterBuildingId, 10));
+      if (filterRoomId) query = query.eq("lokasi", parseInt(filterRoomId, 10));
+      if (filterPositionId) query = query.eq("position", parseInt(filterPositionId, 10));
+      if (filterName) query = query.ilike("nama_pegawai", `%${filterName}%`);
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      setEmployeeSearchResults(data ?? []);
+    } catch (err) {
+      console.error("Employee search failed", err);
+      setEmployeeSearchResults([]);
+    } finally {
+      setSearchingEmployees(false);
+    }
+  };
+
+  const fetchEmployeeDetailsAndAssets = async (employeeId: number) => {
+    try {
+      const { data: emp, error: empErr } = await supabase
+        .from("employees")
+        .select("id, nama_pegawai, position, building_id, lokasi")
+        .eq("id", employeeId)
+        .single();
+
+      if (empErr) throw empErr;
+
+      setSelectedExistingEmployee(emp ?? null);
+
+      // Fetch assets owned by this employee
+      const { data: assetRows, error: assetErr } = await supabase
+        .from("asset")
+        .select("asset_code, asset_name, device(name), asset_condition(name), asset_status(name)")
+        .eq("employee_id", employeeId);
+
+      if (assetErr) {
+        console.warn("Failed fetching employee assets:", assetErr);
+        setExistingEmployeeAssets([]);
+      } else {
+        setExistingEmployeeAssets((assetRows ?? []).map((r: any) => ({
+          asset_code: r.asset_code,
+          asset_name: r.asset_name,
+          device_name: r.device?.name ?? "",
+          condition: r.asset_condition?.name ?? "",
+          status: r.asset_status?.name ?? "",
+        })));
+      }
+    } catch (err) {
+      console.error("Failed to fetch employee details/assets", err);
+      setSelectedExistingEmployee(null);
+      setExistingEmployeeAssets([]);
+    }
+  };
+
+  const handleSelectExistingEmployee = async (id: number) => {
+    setSelectedExistingEmployeeId(id);
+    await fetchEmployeeDetailsAndAssets(id);
+  };
+
+  const handleContinueToStep2WithExisting = () => {
+    if (!selectedExistingEmployee) return;
+    // Prefill form values to keep consistent behavior
+    setValue("nama_pegawai", selectedExistingEmployee.nama_pegawai ?? "");
+    setValue("building_id", String(selectedExistingEmployee.building_id ?? ""));
+    setValue("position", String(selectedExistingEmployee.position ?? ""));
+    setValue("lokasi", String(selectedExistingEmployee.lokasi ?? ""));
+    setStep(2);
+  };
+
   useEffect(() => {
     if (hasFetchedRef.current) {
       console.log("🚫 Skipping duplicate fetch");
@@ -723,40 +839,48 @@ export default function FormPage() {
         }
       }
 
-      const employeeInsert = await supabase
-        .from("employees")
-        .insert([
-          {
-            nama_pegawai: values.nama_pegawai,
-            employee_type_id: parseInt(values.employee_type_id, 10),
-            position: parseInt(values.position, 10),
-            building_id: parseInt(values.building_id, 10),
-            lokasi: parseInt(values.lokasi, 10),
-          },
-        ])
-        .select("id")
-        .single();
-
-      if (employeeInsert.error || !employeeInsert.data?.id) {
-        throw new Error(employeeInsert.error?.message ?? "Gagal menyimpan data pegawai");
-      }
-
-      const employee_id = employeeInsert.data.id;
-
-      const employeeDetailRow: Record<string, unknown> = {
-        employee_id,
-      };
-
-      if (selectedType === "Karyawan") {
-        employeeDetailRow.employee_number = values.employee_number;
+      let employee_id: number;
+      if (mode === "pilih_lama") {
+        if (!selectedExistingEmployeeId) {
+          throw new Error("Tidak ada pegawai yang dipilih");
+        }
+        employee_id = selectedExistingEmployeeId;
       } else {
-        employeeDetailRow.instansi = values.instansi;
-        employeeDetailRow.nomor_ktp = values.nomor_ktp;
-      }
+        const employeeInsert = await supabase
+          .from("employees")
+          .insert([
+            {
+              nama_pegawai: values.nama_pegawai,
+              employee_type_id: parseInt(values.employee_type_id, 10),
+              position: parseInt(values.position, 10),
+              building_id: parseInt(values.building_id, 10),
+              lokasi: parseInt(values.lokasi, 10),
+            },
+          ])
+          .select("id")
+          .single();
 
-      const detailsInsert = await supabase.from("employee_details").insert([employeeDetailRow]);
-      if (detailsInsert.error) {
-        throw new Error(detailsInsert.error.message);
+        if (employeeInsert.error || !employeeInsert.data?.id) {
+          throw new Error(employeeInsert.error?.message ?? "Gagal menyimpan data pegawai");
+        }
+
+        employee_id = employeeInsert.data.id;
+
+        const employeeDetailRow: Record<string, unknown> = {
+          employee_id,
+        };
+
+        if (selectedType === "Karyawan") {
+          employeeDetailRow.employee_number = values.employee_number;
+        } else {
+          employeeDetailRow.instansi = values.instansi;
+          employeeDetailRow.nomor_ktp = values.nomor_ktp;
+        }
+
+        const detailsInsert = await supabase.from("employee_details").insert([employeeDetailRow]);
+        if (detailsInsert.error) {
+          throw new Error(detailsInsert.error.message);
+        }
       }
 
       for (const [assetIndex, asset] of assets.entries()) {
@@ -852,7 +976,7 @@ export default function FormPage() {
           .map((su) => ({
             asset_id,
             shift_id: parseInt(su.shift_id, 10),
-            // nama_manual: su.employee_name.trim(),
+            nama_manual: su.employee_name.trim(),
             employee_id: null,
           }));
 
@@ -973,14 +1097,24 @@ export default function FormPage() {
           <div className="mb-4 flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-slate-500">
             <span className="font-semibold">Progress</span>
             <span>{step} / {assetStepCount}</span>
+            <button
+              type="button"
+              onClick={() => setPreviewMode((p) => !p)}
+              className={`ml-3 rounded-full px-3 py-1 text-xs ${previewMode ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-700"}`}
+            >
+              {previewMode ? "Preview: On" : "Preview: Off"}
+            </button>
           </div>
           <div className="flex gap-2">
             {[1, 2, 3, 4].map((tab) => (
               <div
                 key={tab}
+                onClick={() => { if (previewMode) setStep(tab); }}
+                role={previewMode ? "button" : undefined}
+                tabIndex={previewMode ? 0 : undefined}
                 className={`flex-1 rounded-full border px-3 py-2 text-center text-xs font-semibold ${
                   step === tab ? "bg-slate-900 text-white border-slate-900" : "bg-slate-100 text-slate-500 border-slate-200"
-                }`}
+                } ${previewMode ? "cursor-pointer" : ""}`}
               >
                 {tab === 1 && "Identitas Pegawai"}
                 {tab === 2 && "Tambah Asset"}
@@ -1000,140 +1134,271 @@ export default function FormPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
           {step === 1 && (
             <section className="space-y-6">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Nama Pegawai
-                  <span className="mt-1 block text-md text-slate-500 italic">
-                    Untuk Karyawan masukkan nama lengkap sesuai Aplikasi Talenta, untuk non-karyawan masukan nama lengkap tidak pakai singkatan
-                  </span>
-                </label>
-                <input
-                  {...register("nama_pegawai")}
-                  className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
-                  type="text"
-                />
-                {errors.nama_pegawai ? (
-                  <p className="mt-2 text-sm text-rose-600">{errors.nama_pegawai.message}</p>
-                ) : null}
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Tipe Karyawan</label>
-                <select
-                  {...register("employee_type_id")}
-                  className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle}`}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMode("input_baru")}
+                  className={`cursor-pointer  rounded-full px-4 py-2 text-sm font-semibold ${mode === "input_baru" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
                 >
-                  <option value="">Pilih tipe karyawan</option>
-                  {employeeTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.employee_type_id ? (
-                  <p className="mt-2 text-sm text-rose-600">{errors.employee_type_id.message}</p>
-                ) : null}
+                  Belum Pernah Input  
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("pilih_lama")}
+                  className={`cursor-pointer rounded-full px-4 py-2 text-sm font-semibold ${mode === "pilih_lama" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"}`}
+                >
+                  Sudah Pernah Input 
+                </button>
               </div>
 
-              {isKaryawan && (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">ID Karyawan</label>
-                  <input
-                    {...register("employee_number")}
-                    className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
-                    type="text"
-                  />
-                  {errors.employee_number ? (
-                    <p className="mt-2 text-sm text-rose-600">{errors.employee_number.message}</p>
-                  ) : null}
-                </div>
-              )}
-
-              {isNonKaryawan && (
+              {mode === "input_baru" ? (
                 <>
-                  <div className="mb-2 text-sm text-slate-500">Isi salah satu dari kolom berikut untuk Non-Karyawan.</div>
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">Instansi</label>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Nama Pegawai
+                      <span className="mt-1 block text-md text-slate-500 italic">
+                        Untuk Karyawan masukkan nama lengkap sesuai Aplikasi Talenta, untuk non-karyawan masukan nama lengkap tidak pakai singkatan
+                      </span>
+                    </label>
                     <input
-                      {...register("instansi")}
+                      {...register("nama_pegawai")}
                       className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
                       type="text"
                     />
-                    {errors.instansi ? (
-                      <p className="mt-2 text-sm text-rose-600">{errors.instansi.message}</p>
+                    {errors.nama_pegawai ? (
+                      <p className="mt-2 text-sm text-rose-600">{errors.nama_pegawai.message}</p>
                     ) : null}
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">Nomor KTP</label>
-                    <input
-                      {...register("nomor_ktp")}
-                      className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
-                      type="text"
-                    />
-                    {errors.nomor_ktp ? (
-                      <p className="mt-2 text-sm text-rose-600">{errors.nomor_ktp.message}</p>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Tipe Karyawan</label>
+                    <select
+                      {...register("employee_type_id")}
+                      className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle}`}
+                    >
+                      <option value="">Pilih tipe karyawan</option>
+                      {employeeTypes.map((type) => (
+                        <option key={type.id} value={type.id}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.employee_type_id ? (
+                      <p className="mt-2 text-sm text-rose-600">{errors.employee_type_id.message}</p>
                     ) : null}
+                  </div>
+
+                  {isKaryawan && (
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">ID Karyawan</label>
+                      <input
+                        {...register("employee_number")}
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
+                        type="text"
+                      />
+                      {errors.employee_number ? (
+                        <p className="mt-2 text-sm text-rose-600">{errors.employee_number.message}</p>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {isNonKaryawan && (
+                    <>
+                      <div className="mb-2 text-sm text-slate-500">Isi salah satu dari kolom berikut untuk Non-Karyawan.</div>
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">Instansi</label>
+                        <input
+                          {...register("instansi")}
+                          className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
+                          type="text"
+                        />
+                        {errors.instansi ? (
+                          <p className="mt-2 text-sm text-rose-600">{errors.instansi.message}</p>
+                        ) : null}
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">Nomor KTP</label>
+                        <input
+                          {...register("nomor_ktp")}
+                          className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
+                          type="text"
+                        />
+                        {errors.nomor_ktp ? (
+                          <p className="mt-2 text-sm text-rose-600">{errors.nomor_ktp.message}</p>
+                        ) : null}
+                      </div>
+                    </>
+                  )}
+
+                  <div className="grid gap-6 lg:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Position</label>
+                      <select
+                        {...register("position")}
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle}`}
+                      >
+                        <option value="">Pilih posisi</option>
+                        {positions.map((position) => (
+                          <option key={position.id} value={position.id}>
+                            {position.label}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.position ? (
+                        <p className="mt-2 text-sm text-rose-600">{errors.position.message}</p>
+                      ) : null}
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Gedung</label>
+                      <select
+                        {...register("building_id")}
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle}`}
+                      >
+                        <option value="">Pilih Gedung</option>
+                        {buildings.map((building) => (
+                          <option key={building.id} value={building.id}>
+                            {building.label}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.building_id ? (
+                        <p className="mt-2 text-sm text-rose-600">{errors.building_id.message}</p>
+                      ) : null}
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Ruangan</label>
+                      <select
+                        {...register("lokasi")}
+                        disabled={!selectedBuildingId}
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle} ${!selectedBuildingId ? "bg-slate-100 text-slate-500" : ""}`}
+                      >
+                        <option value="">{selectedBuildingId ? "Pilih ruangan" : "Pilih Gedung dahulu"}</option>
+                        {locations.map((location) => (
+                          <option key={location.id} value={location.id}>
+                            {location.label}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.lokasi ? (
+                        <p className="mt-2 text-sm text-rose-600">{errors.lokasi.message}</p>
+                      ) : null}
+                    </div>
                   </div>
                 </>
+              ) : (
+                // Pilih pegawai yang ada UI
+                <div className="space-y-4">
+                  <div className="grid gap-4 lg:grid-cols-4">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Gedung</label>
+                      <select
+                        value={filterBuildingId}
+                        onChange={(e) => setFilterBuildingId(e.target.value)}
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle}`}
+                      >
+                        <option value="">Semua Gedung</option>
+                        {buildings.map((b) => (
+                          <option key={b.id} value={b.id}>{b.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Ruangan</label>
+                      <select
+                        value={filterRoomId}
+                        onChange={(e) => setFilterRoomId(e.target.value)}
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle}`}
+                      >
+                        <option value="">Semua Ruangan</option>
+                        {locations.map((loc) => (
+                          <option key={loc.id} value={loc.id}>{loc.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Posisi</label>
+                      <select
+                        value={filterPositionId}
+                        onChange={(e) => setFilterPositionId(e.target.value)}
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle}`}
+                      >
+                        <option value="">Semua Posisi</option>
+                        {positions.map((p) => (
+                          <option key={p.id} value={p.id}>{p.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-slate-700">Nama</label>
+                      <input
+                        value={filterName}
+                        onChange={(e) => setFilterName(e.target.value)}
+                        placeholder="Cari nama pegawai"
+                        className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
+                        type="text"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={searchEmployees} className="cursor-pointer rounded-2xl bg-slate-900 px-4 py-2 text-white">Cari</button>
+                    {searchingEmployees ? <div className="text-sm text-slate-500">Mencari...</div> : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    {employeeSearchResults.length === 0 ? (
+                      <div className="text-sm text-slate-500">Tidak ada hasil pencarian</div>
+                    ) : (
+                      employeeSearchResults.map((row: any) => (
+                        <div key={row.id} className={`flex items-center justify-between rounded-xl border p-3 ${panelStyle}`}>
+                          <div>
+                            <div className="font-semibold">{row.nama_pegawai}</div>
+                            <div className="text-sm text-slate-500">{positions.find(p => p.id === String(row.position))?.label ?? ""} — {buildings.find(b => b.id === String(row.building_id))?.label ?? ""} / {locations.find(l => l.id === String(row.lokasi))?.label ?? ""}</div>
+                          </div>
+                          <div>
+                            <button type="button" onClick={() => handleSelectExistingEmployee(row.id)} className="cursor-pointer rounded-full bg-slate-900 px-3 py-1 text-white">Pilih</button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {selectedExistingEmployee ? (
+                    <div className="space-y-3">
+                      <div className={`rounded-xl border p-3 ${panelStyle}`}>
+                        <div className="font-semibold">{selectedExistingEmployee.nama_pegawai}</div>
+                        <div className="text-sm text-slate-500">{positions.find(p => p.id === String(selectedExistingEmployee.position))?.label ?? ""} — {buildings.find(b => b.id === String(selectedExistingEmployee.building_id))?.label ?? ""} / {locations.find(l => l.id === String(selectedExistingEmployee.lokasi))?.label ?? ""}</div>
+                      </div>
+
+                      <div>
+                        <div className="mb-2 font-semibold">Aset yang dimiliki</div>
+                        {existingEmployeeAssets.length === 0 ? (
+                          <div className="text-sm text-slate-500">Tidak ada aset terdaftar</div>
+                        ) : (
+                          <div className="space-y-2">
+                            {existingEmployeeAssets.map((a, i) => (
+                              <div key={i} className={`rounded-xl border p-3 ${panelStyle}`}>
+                                <div className="font-semibold">{a.asset_code} — {a.asset_name}</div>
+                                <div className="text-sm text-slate-500">{a.device_name} • {a.condition} • {a.status}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <button type="button" onClick={handleContinueToStep2WithExisting} className="cursor-pointer rounded-2xl bg-emerald-600 px-4 py-2 text-white">Lanjut Tambah Aset</button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               )}
-
-              <div className="grid gap-6 lg:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Position</label>
-                  <select
-                    {...register("position")}
-                    className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle}`}
-                  >
-                    <option value="">Pilih posisi</option>
-                    {positions.map((position) => (
-                      <option key={position.id} value={position.id}>
-                        {position.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.position ? (
-                    <p className="mt-2 text-sm text-rose-600">{errors.position.message}</p>
-                  ) : null}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Gedung</label>
-                  <select
-                    {...register("building_id")}
-                    className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle}`}
-                  >
-                    <option value="">Pilih Gedung</option>
-                    {buildings.map((building) => (
-                      <option key={building.id} value={building.id}>
-                        {building.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.building_id ? (
-                    <p className="mt-2 text-sm text-rose-600">{errors.building_id.message}</p>
-                  ) : null}
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Ruangan</label>
-                  <select
-                    {...register("lokasi")}
-                    disabled={!selectedBuildingId}
-                    className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${selectStyle} ${!selectedBuildingId ? "bg-slate-100 text-slate-500" : ""}`}
-                  >
-                    <option value="">{selectedBuildingId ? "Pilih ruangan" : "Pilih Gedung dahulu"}</option>
-                    {locations.map((location) => (
-                      <option key={location.id} value={location.id}>
-                        {location.label}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.lokasi ? (
-                    <p className="mt-2 text-sm text-rose-600">{errors.lokasi.message}</p>
-                  ) : null}
-                </div>
-              </div>
             </section>
           )}
 
