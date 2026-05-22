@@ -1539,8 +1539,8 @@ export default function FormPage() {
               {isComputerCurrent && (
                 <div className={`transition-all duration-300 ease-in-out overflow-hidden ${
                   skipSpesifikasi
-                    ? "max-h-0 opacity-0"
-                    : "max-h-screen opacity-100"
+                    ? "grid-rows-[0fr]"
+                    : "grid-rows-[1fr]"
                 }`}>
                   <div className="space-y-6">
                     <div className="grid gap-6 lg:grid-cols-2">
