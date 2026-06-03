@@ -10,6 +10,15 @@ import { formatErrorDetails } from "@/lib/errorUtils";
 import { saveAssetSubmission } from "@/lib/assetCodeStore";
 import { COMPUTER_FIELDS, computerFieldMeta, isComputerDevice } from "@/app/form/formConstants";
 
+// --- Constants & Helpers ---
+const ASSET_STEP_COUNT = 4;
+const THEME_KEY = "theme";
+const DEFAULT_SOFTWARE = [{ name: "" }];
+const ASSET_NAME_PLACEHOLDER = "contoh: DESKTOP-ABC123 atau nama custom";
+const MERK_PLACEHOLDER_PC = "contoh: Intel NUC 11, Dell OptiPlex 7070";
+const MERK_PLACEHOLDER_LAPTOP = "contoh: Dell Latitude 7490, Lenovo IdeaPad 3";
+
+// --- Validation Schema ---
 const formSchema = z.object({
   nama_pegawai: z.string().min(1, "Nama pegawai wajib diisi"),
   employee_type_id: z.string().min(1, "Tipe karyawan wajib dipilih"),
@@ -76,7 +85,7 @@ export default function FormPage() {
   const [conditions, setConditions] = useState<SelectOption[]>([]);
   const [statuses, setStatuses] = useState<SelectOption[]>([]);
   const [employeeTypes, setEmployeeTypes] = useState<SelectOption[]>([]);
-  // Mode: 'input_baru' = input new employee, 'pilih_lama' = choose existing
+  // Mode: 'input_baru' = pegawai baru, 'pilih_lama' = sudah pernah input / pilih pegawai existing
   const [mode, setMode] = useState<"input_baru" | "pilih_lama">("input_baru");
   const [selectedExistingEmployeeId, setSelectedExistingEmployeeId] = useState<number | null>(null);
   const [selectedExistingEmployee, setSelectedExistingEmployee] = useState<Record<string, any> | null>(null);
@@ -90,7 +99,7 @@ export default function FormPage() {
   
   const [assets, setAssets] = useState<Asset[]>([]);
   const [currentAsset, setCurrentAsset] = useState<Partial<Asset>>({});
-  const [currentSoftwares, setCurrentSoftwares] = useState([{ name: "" }]);
+  const [currentSoftwares, setCurrentSoftwares] = useState(DEFAULT_SOFTWARE);
   const [currentAssetCode, setCurrentAssetCode] = useState("");
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
@@ -119,19 +128,16 @@ export default function FormPage() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const savedTheme = window.localStorage.getItem("theme");
-    if (savedTheme === "light" || savedTheme === "dark") {
-      setTheme(savedTheme);
-      return;
-    }
-    setTheme(window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const savedTheme = window.localStorage.getItem(THEME_KEY) as "light" | "dark" | null;
+    const initialTheme = savedTheme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    setTheme(initialTheme);
   }, []);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.documentElement.classList.toggle("dark", theme === "dark");
     document.documentElement.classList.toggle("light", theme === "light");
-    window.localStorage.setItem("theme", theme);
+    window.localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
   useEffect(() => {
@@ -170,12 +176,16 @@ export default function FormPage() {
     },
   });
 
-  /* eslint-disable react-hooks/incompatible-library */
   const selectedBuildingId = watch("building_id");
   const selectedRoomId = watch("lokasi");
   const selectedEmployeeTypeId = watch("employee_type_id");
-  /* eslint-enable react-hooks/incompatible-library */
-  const selectedEmployeeTypeLabel = employeeTypes.find((type) => type.id === selectedEmployeeTypeId)?.label ?? "";
+
+  const selectedEmployeeTypeLabel = useMemo(() => {
+    if (mode === "pilih_lama" && selectedExistingEmployee?.employee_type_id != null) {
+      return employeeTypes.find((type) => type.id === String(selectedExistingEmployee.employee_type_id))?.label ?? "";
+    }
+    return employeeTypes.find((type) => type.id === selectedEmployeeTypeId)?.label ?? "";
+  }, [mode, selectedExistingEmployee, selectedEmployeeTypeId, employeeTypes]);
   const isKaryawan = selectedEmployeeTypeLabel === "Karyawan";
   const isNonKaryawan = selectedEmployeeTypeLabel === "Non-Karyawan";
   
@@ -200,26 +210,20 @@ export default function FormPage() {
     [currentDeviceLabel]
   );
 
-  const parseChecklistItem = (item: { id: number; category: string; item_text: string }) => {
-    const rawText = item.item_text.trim();
-    let prefix: "LAPTOP" | "PC" | null = null;
-    let text = rawText;
+  const assetNameLabel = useMemo(() => {
+    if (isLaptopCurrent) return "Nama Perangkat";
+    if (isPCCurrent) return "Nama Komputer";
+    return "Nama Laptop";
+  }, [isLaptopCurrent, isPCCurrent]);
 
-    if (rawText.toUpperCase().startsWith("[LAPTOP]")) {
-      prefix = "LAPTOP";
-      text = rawText.replace(/^\[LAPTOP\]\s*/i, "");
-    } else if (rawText.toUpperCase().startsWith("[PC]")) {
-      prefix = "PC";
-      text = rawText.replace(/^\[PC\]\s*/i, "");
-    }
-
-    return {
-      id: item.id,
-      category: item.category.toUpperCase() as ChecklistCategory,
-      prefix,
-      item_text: text.trim(),
-    };
-  };
+  const dynamicFieldMeta = useMemo(() => ({
+    ...computerFieldMeta,
+    merk: {
+      ...computerFieldMeta.merk,
+      placeholder: isPCCurrent ? MERK_PLACEHOLDER_PC : MERK_PLACEHOLDER_LAPTOP,
+      hint: "Masukkan Merk + System Model perangkat",
+    },
+  }), [isPCCurrent]);
 
   const getChecklistItemsForAsset = (asset: Asset) => {
     const deviceLabel = devices.find((device) => device.id === asset.device_id)?.label?.toLowerCase() ?? "";
@@ -248,30 +252,25 @@ export default function FormPage() {
     })).filter((group) => group.items.length > 0);
   };
 
-  const assetNameLabel = isLaptopCurrent
-    ? "Nama Perangkat"
-    : isPCCurrent
-    ? "Nama Komputer"
-    : "Nama Laptop";
-  const assetNamePlaceholder = isLaptopCurrent
-    ? "contoh: DESKTOP-ABC123 atau nama custom"
-    : isPCCurrent
-    ? "contoh: DESKTOP-ABC123 atau nama custom"
-    : "contoh: DESKTOP-ABC123 atau nama custom";
+  const parseChecklistItem = (item: { id: number; category: string; item_text: string }) => {
+    const rawText = item.item_text.trim();
+    let prefix: "LAPTOP" | "PC" | null = null;
+    let text = rawText;
 
-  const merkLabel = "Merk + System Model";
-  const merkPlaceholder = isPCCurrent ? "contoh: Intel NUC 11, Dell OptiPlex 7070" : "contoh: Dell Latitude 7490, Lenovo IdeaPad 3";
-  const merkHint = isPCCurrent
-    ? "Masukkan Merk + System Model perangkat"
-    : "Masukkan Merk + System Model perangkat";
+    if (rawText.toUpperCase().startsWith("[LAPTOP]")) {
+      prefix = "LAPTOP";
+      text = rawText.replace(/^\[LAPTOP\]\s*/i, "");
+    } else if (rawText.toUpperCase().startsWith("[PC]")) {
+      prefix = "PC";
+      text = rawText.replace(/^\[PC\]\s*/i, "");
+    }
 
-  const dynamicFieldMeta = {
-    ...computerFieldMeta,
-    merk: {
-      ...computerFieldMeta.merk,
-      placeholder: merkPlaceholder,
-      hint: merkHint,
-    },
+    return {
+      id: item.id,
+      category: item.category.toUpperCase() as ChecklistCategory,
+      prefix,
+      item_text: text.trim(),
+    };
   };
 
   const updateCurrentAsset = <K extends keyof Asset>(field: K, value: Asset[K] | undefined) => {
@@ -514,13 +513,16 @@ export default function FormPage() {
     try {
       const { data: emp, error: empErr } = await supabase
         .from("employees")
-        .select("id, nama_pegawai, position, building_id, lokasi")
+        .select("id, nama_pegawai, position, building_id, lokasi, employee_type_id")
         .eq("id", employeeId)
         .single();
 
       if (empErr) throw empErr;
 
       setSelectedExistingEmployee(emp ?? null);
+      if (emp?.employee_type_id != null) {
+        setValue("employee_type_id", String(emp.employee_type_id));
+      }
 
       // Fetch assets owned by this employee
       const { data: assetRows, error: assetErr } = await supabase
@@ -556,6 +558,7 @@ export default function FormPage() {
     if (!selectedExistingEmployee) return;
     // Prefill form values to keep consistent behavior
     setValue("nama_pegawai", selectedExistingEmployee.nama_pegawai ?? "");
+    setValue("employee_type_id", String(selectedExistingEmployee.employee_type_id ?? ""));
     setValue("building_id", String(selectedExistingEmployee.building_id ?? ""));
     setValue("position", String(selectedExistingEmployee.position ?? ""));
     setValue("lokasi", String(selectedExistingEmployee.lokasi ?? ""));
@@ -747,7 +750,7 @@ export default function FormPage() {
         }, {} as AssetChecklistState);
       })
     );
-  }, [assets, checklistItems]);
+  }, [assets, checklistItems, devices]);
 
   useEffect(() => {
     if (!currentAsset.device_id || !selectedRoomId) {
@@ -1454,7 +1457,7 @@ export default function FormPage() {
                 <input
                   value={currentAsset.asset_name || ""}
                   onChange={(e) => updateCurrentAsset("asset_name", e.target.value)}
-                  placeholder={assetNamePlaceholder}
+                  placeholder={ASSET_NAME_PLACEHOLDER}
                   className={`w-full rounded-2xl border px-4 py-3 outline-none transition focus:border-slate-900 ${fieldStyle}`}
                   type="text"
                 />
