@@ -513,10 +513,7 @@ export default function FormPage() {
     try {
       const { data: emp, error: empErr } = await supabase
         .from("employees")
-        .select(`
-          id, nama_pegawai, position, building_id, lokasi, employee_type_id,
-          employee_details(employee_number, instansi, nomor_ktp)
-        `)
+        .select("id, nama_pegawai, position, building_id, lokasi, employee_type_id")
         .eq("id", employeeId)
         .single();
 
@@ -565,15 +562,6 @@ export default function FormPage() {
     setValue("building_id", String(selectedExistingEmployee.building_id ?? ""));
     setValue("position", String(selectedExistingEmployee.position ?? ""));
     setValue("lokasi", String(selectedExistingEmployee.lokasi ?? ""));
-
-    // Prefill data dari employee_details
-    const details = selectedExistingEmployee.employee_details?.[0] || selectedExistingEmployee.employee_details;
-    if (details) {
-      setValue("employee_number", details.employee_number ?? "");
-      setValue("instansi", details.instansi ?? "");
-      setValue("nomor_ktp", details.nomor_ktp ?? "");
-    }
-
     setStep(2);
   };
 
