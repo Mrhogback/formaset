@@ -3,11 +3,15 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
+import EditAssetModal from "./EditAssetModal";
 
 type AssetData = {
   id: string;
   asset_code: string;
   asset_name: string;
+  kondisi_aset: number;
+  asset_status: number;
+  photo_url: string | null;
   device: { name: string };
   kondisi: { name: string };
   status: { name: string };
@@ -40,12 +44,15 @@ export default function TrackingPage() {
   const [loading, setLoading] = useState(false);
   const [asset, setAsset] = useState<AssetData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+  const handleSearch = async (preserveNotice = false): Promise<boolean> => {
+    if (!searchQuery.trim()) return false;
 
     setLoading(true);
     setError(null);
+    if (!preserveNotice) setNotice(null);
     setAsset(null);
 
     try {
@@ -80,12 +87,14 @@ export default function TrackingPage() {
         } else {
           setError("Terjadi kesalahan saat mencari data");
         }
-        return;
+        return false;
       }
 
       setAsset(data);
+      return true;
     } catch (err) {
       setError("Terjadi kesalahan saat menghubungi server");
+      return false;
     } finally {
       setLoading(false);
     }
@@ -168,7 +177,7 @@ export default function TrackingPage() {
                     disabled={loading}
                 />
                 <button
-                    onClick={handleSearch}
+                    onClick={() => handleSearch()}
                     disabled={loading || !searchQuery.trim()}
                     className="cursor-pointer px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed transition-colors font-medium"
                 >
@@ -200,12 +209,23 @@ export default function TrackingPage() {
             {/* Asset Info */}
             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
               <div className="border-b border-gray-100 px-6 py-4">
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Informasi Aset
-                </h2>
-                <p className="mt-1 text-sm text-gray-500">
-                  Detail identitas dan lokasi perangkat
-                </p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">
+                      Informasi Aset
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-500">
+                      Detail identitas dan lokasi perangkat
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowEditModal(true)}
+                    className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+                  >
+                    Edit
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-5 p-6 md:grid-cols-2 xl:grid-cols-3">
@@ -413,6 +433,37 @@ export default function TrackingPage() {
                 </div>
               )}
           </div>
+        )}
+        {notice && (
+          <div role="status" className="mx-auto my-4 max-w-6xl rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {notice}
+          </div>
+        )}
+        {showEditModal && asset && (
+          <EditAssetModal
+            assetId={asset.id}
+            assetCode={asset.asset_code}
+            assetName={asset.asset_name}
+            assetTypeName={asset.device?.name ?? "-"}
+            conditionId={String(asset.kondisi_aset)}
+            statusId={String(asset.asset_status)}
+            photoUrl={asset.photo_url}
+            employeeName={asset.employee?.nama_pegawai ?? "-"}
+            buildingName={asset.employee?.gedung?.building_name ?? "-"}
+            roomName={asset.employee?.lokasi?.room_name ?? "-"}
+            onClose={() => setShowEditModal(false)}
+            onSaved={() => {
+              setShowEditModal(false);
+              void (async () => {
+                const refreshed = await handleSearch(true);
+                setNotice(
+                  refreshed
+                    ? "Perubahan aset berhasil disimpan."
+                    : "Perubahan tersimpan, tetapi data Tracking gagal diperbarui."
+                );
+              })();
+            }}
+          />
         )}
       </div>
     </main>
